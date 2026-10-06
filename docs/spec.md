@@ -516,8 +516,10 @@ at the top and widened only on the image job.
 | `image` | `actions/checkout`, `docker/setup-buildx-action`, `docker/login-action` (not on pull requests), `docker/metadata-action` (tags: `latest` on `main`, semver on tags, `pr-N`, `sha-...`), `docker/build-push-action` (push except on pull requests, provenance, GHA cache), `actions/attest-build-provenance` (not on pull requests). Permissions: `contents: read`, `packages: write`, `id-token: write`, `attestations: write`, `artifact-metadata: write` |
 
 The image is `ghcr.io/ctrl-alt-gg/signage-web`. Action versions are the
-newest major tags at the time of writing; Dependabot or Renovate should
-keep them current.
+newest major tags at the time of writing. The two `astral-sh` actions
+publish no bare major tag, so they are pinned to their latest exact
+release (`ruff-action@v4.1.0`, `setup-uv@v10.2.0`). Dependabot or Renovate
+should keep all of them current.
 
 ## 14. Docker, Compose, kiosk
 

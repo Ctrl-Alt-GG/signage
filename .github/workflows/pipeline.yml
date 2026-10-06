@@ -29,11 +29,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Ruff check
-        uses: astral-sh/ruff-action@v4
+        uses: astral-sh/ruff-action@v4.1.0
         with:
           args: check .
       - name: Ruff format
-        uses: astral-sh/ruff-action@v4
+        uses: astral-sh/ruff-action@v4.1.0
         with:
           args: format --check .
 
@@ -76,7 +76,7 @@ jobs:
         with:
           name: frontend-dist
           path: frontend/dist
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
       # The test suite also covers the project health checks: Django system checks,
