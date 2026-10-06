@@ -1,0 +1,21 @@
+{
+  "announcement": {"text": "Pizza order closes at 18:30 in #general."},
+  "gameServers": [
+    {"name": "Office 24/7", "game": "cs2", "info": "de_dust2", "addresses": ["192.168.130.40:27015"],
+     "online_players": 7, "max_players": 12,
+     "capabilities": {"player_count": true, "player_names": true, "player_score": true, "player_team": false},
+     "players": [{"name": "FiNT", "score": 21, "info": "CT"}], "last_update": "2026-10-03T18:40:12Z"},
+    {"name": "Blocks", "game": "minecraft", "info": "survival", "addresses": ["192.168.130.12:25565"],
+     "online_players": 3, "max_players": 40,
+     "capabilities": {"player_count": true, "player_names": false, "player_score": false, "player_team": false},
+     "players": [], "last_update": "2026-10-03T18:40:12Z"},
+    {"name": "Voice", "game": "ts3", "info": "", "addresses": ["192.168.130.5:9987"],
+     "online_players": 0, "max_players": 64,
+     "capabilities": {"player_count": false, "player_names": false, "player_score": false, "player_team": false},
+     "players": [], "last_update": "2026-10-03T18:40:12Z"},
+    {"name": "Mystery", "game": "unknowngame", "info": "", "addresses": [],
+     "online_players": 1, "max_players": 8,
+     "capabilities": {"player_count": true, "player_names": false, "player_score": false, "player_team": false},
+     "players": [], "last_update": "2026-10-03T18:40:12Z"}
+  ]
+}

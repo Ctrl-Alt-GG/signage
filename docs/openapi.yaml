@@ -1,0 +1,514 @@
+openapi: 3.1.0
+info:
+  title: Ctrl-Alt-GG Signage API
+  version: 1.0.0
+  description: Read-only JSON the display frontend polls. Content is managed in the
+    Django admin.
+paths:
+  /api/v1/announcements/active/:
+    get:
+      operationId: announcements_active
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActiveAnnouncements'
+          description: ''
+  /api/v1/phase/:
+    get:
+      operationId: phase_current
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Phase'
+          description: ''
+  /api/v1/schedule/:
+    get:
+      operationId: schedule_view
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduleView'
+          description: ''
+  /api/v1/screens/:
+    get:
+      operationId: screen_list
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Screen'
+          description: ''
+  /api/v1/screens/{slug}/bundle/:
+    get:
+      operationId: screen_bundle
+      parameters:
+      - in: query
+        name: lang
+        schema:
+          type: string
+        description: hu, en or both (preview only).
+      - in: query
+        name: phase
+        schema:
+          type: string
+        description: Phase key override (staff only).
+      - in: query
+        name: preview
+        schema:
+          type: string
+        description: Slide key to render alone.
+      - in: path
+        name: slug
+        schema:
+          type: string
+        required: true
+      tags:
+      - v1
+      security:
+      - cookieAuth: []
+      - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bundle'
+          description: ''
+components:
+  schemas:
+    ActiveAnnouncementRow:
+      type: object
+      properties:
+        id:
+          type: string
+        level:
+          $ref: '#/components/schemas/LevelEnum'
+        takeover:
+          type: boolean
+        text:
+          $ref: '#/components/schemas/Bilingual'
+        ends_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+        screens:
+          type: array
+          items:
+            type: string
+            pattern: ^[-a-zA-Z0-9_]+$
+      required:
+      - ends_at
+      - id
+      - level
+      - screens
+      - takeover
+      - text
+    ActiveAnnouncements:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ActiveAnnouncementRow'
+      required:
+      - results
+    Announcement:
+      type: object
+      properties:
+        id:
+          type: string
+        level:
+          $ref: '#/components/schemas/LevelEnum'
+        takeover:
+          type: boolean
+        text:
+          $ref: '#/components/schemas/Bilingual'
+        ends_at:
+          type:
+          - string
+          - 'null'
+          format: date-time
+      required:
+      - ends_at
+      - id
+      - level
+      - takeover
+      - text
+    Bilingual:
+      type: object
+      properties:
+        hu:
+          type: string
+        en:
+          type: string
+      required:
+      - en
+      - hu
+    Bundle:
+      type: object
+      properties:
+        version:
+          type: string
+        generated_at:
+          type: string
+          format: date-time
+        screen:
+          $ref: '#/components/schemas/Screen'
+        phase:
+          oneOf:
+          - $ref: '#/components/schemas/Phase'
+          - type: 'null'
+        clock:
+          $ref: '#/components/schemas/Clock'
+        event:
+          $ref: '#/components/schemas/EventSummary'
+        announcement:
+          oneOf:
+          - $ref: '#/components/schemas/Announcement'
+          - type: 'null'
+        passes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Pass'
+        warnings:
+          type: array
+          items:
+            type: string
+        preview:
+          type: boolean
+        default_screen:
+          type: string
+      required:
+      - announcement
+      - clock
+      - default_screen
+      - event
+      - generated_at
+      - passes
+      - phase
+      - preview
+      - screen
+      - version
+      - warnings
+    Clock:
+      type: object
+      properties:
+        now:
+          type: string
+          format: date-time
+        timezone:
+          type: string
+      required:
+      - now
+      - timezone
+    EventSummary:
+      type: object
+      properties:
+        name:
+          type: string
+        tagline:
+          type: string
+        starts_at:
+          type: string
+          format: date-time
+        ends_at:
+          type: string
+          format: date-time
+      required:
+      - ends_at
+      - name
+      - starts_at
+      - tagline
+    GameRef:
+      type: object
+      properties:
+        slug:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+        short:
+          type: string
+        color_bg:
+          type: string
+        color_text:
+          type: string
+      required:
+      - color_bg
+      - color_text
+      - name
+      - short
+      - slug
+    LangEnum:
+      enum:
+      - hu
+      - en
+      - both
+      type: string
+      description: |-
+        * `hu` - hu
+        * `en` - en
+        * `both` - both
+    LanguageModeEnum:
+      enum:
+      - slide
+      - hu
+      - en
+      type: string
+      description: |-
+        * `slide` - slide
+        * `hu` - hu
+        * `en` - en
+    LevelEnum:
+      enum:
+      - info
+      - warning
+      - urgent
+      type: string
+      description: |-
+        * `info` - info
+        * `warning` - warning
+        * `urgent` - urgent
+    ModeEnum:
+      enum:
+      - manual
+      - auto
+      type: string
+      description: |-
+        * `manual` - manual
+        * `auto` - auto
+    Pass:
+      type: object
+      properties:
+        key:
+          type: string
+        slide:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        layout:
+          type: string
+        source:
+          type: string
+        lang:
+          $ref: '#/components/schemas/LangEnum'
+        duration_ms:
+          type: integer
+        content:
+          $ref: '#/components/schemas/SlideContent'
+        live:
+          oneOf:
+          - {}
+          - type: 'null'
+      required:
+      - content
+      - duration_ms
+      - key
+      - lang
+      - layout
+      - live
+      - slide
+      - source
+    Phase:
+      type: object
+      properties:
+        key:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          $ref: '#/components/schemas/Bilingual'
+        mode:
+          $ref: '#/components/schemas/ModeEnum'
+      required:
+      - key
+      - name
+    ScheduleEntryView:
+      type: object
+      properties:
+        time:
+          type: string
+        type:
+          $ref: '#/components/schemas/TypeEnum'
+        label:
+          type: string
+        title:
+          $ref: '#/components/schemas/Bilingual'
+        note:
+          $ref: '#/components/schemas/Bilingual'
+        game:
+          oneOf:
+          - $ref: '#/components/schemas/GameRef'
+          - type: 'null'
+        starts_at:
+          type: string
+          format: date-time
+      required:
+      - game
+      - label
+      - note
+      - starts_at
+      - time
+      - title
+      - type
+    ScheduleView:
+      type: object
+      properties:
+        now:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleEntryView'
+        next:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleEntryView'
+        later:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleEntryView'
+        upcoming:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduleEntryView'
+      required:
+      - later
+      - next
+      - now
+      - upcoming
+    Screen:
+      type: object
+      properties:
+        slug:
+          type: string
+          pattern: ^[-a-zA-Z0-9_]+$
+        name:
+          type: string
+        refresh_seconds:
+          type: integer
+        show_clock:
+          type: boolean
+        show_progress:
+          type: boolean
+        language_mode:
+          $ref: '#/components/schemas/LanguageModeEnum'
+      required:
+      - language_mode
+      - name
+      - refresh_seconds
+      - show_clock
+      - show_progress
+      - slug
+    SlideColumn:
+      type: object
+      properties:
+        title:
+          $ref: '#/components/schemas/Bilingual'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlideItem'
+      required:
+      - items
+      - title
+    SlideContent:
+      type: object
+      properties:
+        kicker:
+          $ref: '#/components/schemas/Bilingual'
+        title:
+          $ref: '#/components/schemas/Bilingual'
+        body:
+          $ref: '#/components/schemas/Bilingual'
+        footer:
+          $ref: '#/components/schemas/Bilingual'
+        empty:
+          $ref: '#/components/schemas/Bilingual'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlideItem'
+        columns:
+          type: array
+          items:
+            $ref: '#/components/schemas/SlideColumn'
+        labels:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/Bilingual'
+        link:
+          oneOf:
+          - $ref: '#/components/schemas/SlideLink'
+          - type: 'null'
+      required:
+      - columns
+      - items
+      - labels
+      - title
+    SlideItem:
+      type: object
+      properties:
+        hu:
+          type: string
+        en:
+          type: string
+        icon:
+          type: string
+      required:
+      - en
+      - hu
+    SlideLink:
+      type: object
+      properties:
+        url:
+          type: string
+        label:
+          $ref: '#/components/schemas/Bilingual'
+        qr_payload:
+          type: string
+      required:
+      - label
+      - qr_payload
+      - url
+    TypeEnum:
+      enum:
+      - play
+      - break
+      - highlight
+      type: string
+      description: |-
+        * `play` - play
+        * `break` - break
+        * `highlight` - highlight
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: sessionid

@@ -1,0 +1,19 @@
+{% load django_vite %}<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Ctrl-Alt-GG Signage</title>
+  <link rel="icon" href="data:,">
+  {% vite_hmr_client %}
+  {% vite_asset 'src/main.tsx' %}
+</head>
+<body
+  class="bg-field"
+  data-screen="{{ screen_slug }}"
+  data-api-base="/api/v1/"
+>
+  <div id="root"></div>
+</body>
+</html>

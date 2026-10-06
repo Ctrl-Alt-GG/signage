@@ -1,0 +1,46 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+<div id="content-main">
+  <div class="module">
+    <h2>{% translate "Phase" %}</h2>
+    <p>
+      {% if phase %}<strong>{{ phase.key }}</strong> ({{ phase.name_hu }} / {{ phase.name_en }}){% else %}-{% endif %},
+      {% translate "mode" %}: {{ event.get_phase_mode_display }}.
+      <a href="{% url 'admin:signage_event_change' %}">{% translate "Change" %}</a>
+    </p>
+  </div>
+
+  <div class="module">
+    <h2>{% translate "Screens" %}</h2>
+    <table>
+      <thead><tr><th>{% translate "Screen" %}</th><th>{% translate "URL" %}</th><th>{% translate "Passes" %}</th><th>{% translate "Announcement" %}</th><th>{% translate "Warnings" %}</th></tr></thead>
+      <tbody>
+      {% for row in screens %}
+        <tr>
+          <td>{{ row.screen.name }}</td>
+          <td><a href="{{ row.url }}" target="_blank">{{ row.url }}</a></td>
+          <td>{{ row.passes }}</td>
+          <td>{% if row.announcement %}{{ row.announcement.level }}: {{ row.announcement.text.hu }}{% else %}-{% endif %}</td>
+          <td>{% for w in row.warnings %}<div>{{ w }}</div>{% empty %}-{% endfor %}</td>
+        </tr>
+        <tr><td colspan="5"><iframe src="{{ row.url }}" title="{{ row.screen.name }}" width="640" height="360" style="border:1px solid #444;border-radius:8px;background:#130404" loading="lazy"></iframe></td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module">
+    <h2>{% translate "Integrations" %}</h2>
+    <table>
+      <thead><tr><th>{% translate "System" %}</th><th>{% translate "Enabled" %}</th><th>{% translate "Base URL" %}</th><th>{% translate "Fresh" %}</th><th>{% translate "Last fetch" %}</th></tr></thead>
+      <tbody>
+      {% for row in integrations %}
+        <tr><td>{{ row.kind }}</td><td>{{ row.enabled|yesno }}</td><td>{{ row.base_url|default:"-" }}</td><td>{{ row.fresh|yesno }}</td><td>{{ row.last_fetch|default:"-" }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <p><a href="{% url 'admin:signage_integration_changelist' %}">{% translate "Configure integrations" %}</a></p>
+  </div>
+</div>
+{% endblock %}

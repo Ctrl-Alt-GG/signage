@@ -1,0 +1,4 @@
+{"data": [{"id": 3, "club_id": 1, "name": "CS2 Autumn 2026", "created": "2026-09-01T10:00:00Z",
+  "start_time": "2026-10-03T18:00:00Z", "duration_minutes": 30, "margin_minutes": 5,
+  "dashboard_public": true, "dashboard_endpoint": "cs2", "logo_path": null,
+  "players_can_be_in_multiple_teams": false, "status": "OPEN"}]}

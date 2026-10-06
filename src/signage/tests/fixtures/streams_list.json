@@ -1,0 +1,12 @@
+{"source": {"status": "fresh", "observed_at": "2026-10-03T19:02:10+00:00", "age_seconds": 3.2, "failure_count": 0},
+ "results": [
+  {"id": "0192f0a1-0000-7000-8000-000000000001", "display_name": "Main stage", "description": "", "effective_name": "Main stage",
+   "status": "live", "available": true, "online": true, "audio_only": false, "tracks": [], "observed_at": "2026-10-03T19:02:10+00:00", "stale": false,
+   "watch_url": "https://streams.example/streams/1/", "thumbnail_url": "https://streams.example/streams/1/thumbnail/", "hls_url": "https://media.example/hls/live/main/index.m3u8"},
+  {"id": "0192f0a1-0000-7000-8000-000000000002", "display_name": "", "description": "", "effective_name": "radio",
+   "status": "live", "available": true, "online": true, "audio_only": true, "tracks": [], "observed_at": "2026-10-03T19:02:10+00:00", "stale": false,
+   "watch_url": "https://streams.example/streams/2/", "thumbnail_url": "https://streams.example/static/audio.svg", "hls_url": null},
+  {"id": "0192f0a1-0000-7000-8000-000000000003", "display_name": "Offline one", "description": "", "effective_name": "Offline one",
+   "status": "offline", "available": false, "online": false, "audio_only": false, "tracks": [], "observed_at": null, "stale": false,
+   "watch_url": "https://streams.example/streams/3/", "thumbnail_url": "https://streams.example/static/offline.svg", "hls_url": null}
+ ]}

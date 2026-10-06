@@ -1,0 +1,26 @@
+{"data": [{"id": 1, "name": "Playoffs", "is_active": true, "stage_items": [{"id": 2, "name": "Bracket", "type_name": "Single elimination", "team_count": 4,
+  "rounds": [
+    {"id": 7, "name": "Semifinals", "matches": [
+      {"id": 41, "round_id": 7, "created": "2026-09-01T10:00:00Z", "start_time": "2026-10-03T18:00:00Z", "duration_minutes": 30, "margin_minutes": 5,
+       "stage_item_input1_id": 11, "stage_item_input2_id": 12, "stage_item_input1_score": 16, "stage_item_input2_score": 9,
+       "stage_item_input1_conflict": false, "stage_item_input2_conflict": false,
+       "stage_item_input1": {"id": 11, "slot": 1, "team_id": 5, "team": {"id": 5, "name": "Headshot Heroes"}},
+       "stage_item_input2": {"id": 12, "slot": 2, "team_id": 6, "team": {"id": 6, "name": "Rush B"}}},
+      {"id": 42, "round_id": 7, "created": "2026-09-01T10:00:00Z", "start_time": "2026-10-03T18:40:00Z", "duration_minutes": 30, "margin_minutes": 5,
+       "stage_item_input1_id": 13, "stage_item_input2_id": 14, "stage_item_input1_score": 0, "stage_item_input2_score": 0,
+       "stage_item_input1_conflict": false, "stage_item_input2_conflict": false,
+       "stage_item_input1": {"id": 13, "slot": 3, "team_id": 7},
+       "stage_item_input2": {"id": 14, "slot": 4, "team_id": 8, "team": {"id": 8, "name": "Clutch Kings"}}}
+    ]},
+    {"id": 8, "name": "Final", "matches": [
+      {"id": 43, "round_id": 8, "created": "2026-09-01T10:00:00Z", "start_time": "2026-10-03T19:30:00Z", "duration_minutes": 45, "margin_minutes": 5,
+       "stage_item_input1_id": null, "stage_item_input2_id": null, "stage_item_input1_score": 0, "stage_item_input2_score": 0,
+       "stage_item_input1_conflict": false, "stage_item_input2_conflict": false,
+       "stage_item_input1": null, "stage_item_input2": null},
+      {"id": 44, "round_id": 8, "created": "2026-09-01T10:00:00Z", "start_time": "2026-10-03T20:30:00Z", "duration_minutes": 45, "margin_minutes": 5,
+       "stage_item_input1_id": 11, "stage_item_input2_id": 14, "stage_item_input1_score": 0, "stage_item_input2_score": 0,
+       "stage_item_input1_conflict": false, "stage_item_input2_conflict": false,
+       "stage_item_input1": {"id": 11, "slot": 1, "team_id": 5, "team": {"id": 5, "name": "Headshot Heroes"}},
+       "stage_item_input2": {"id": 14, "slot": 4, "team_id": 8, "team": {"id": 8, "name": "Clutch Kings"}}}
+    ]}
+  ]}]}]}

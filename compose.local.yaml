@@ -1,0 +1,22 @@
+# Local build of the production image against SQLite, for trying the container without
+# Postgres: `docker compose -f compose.local.yaml up --build`.
+services:
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    environment:
+      DJANGO_SECRET_KEY: local-only-secret
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      DJANGO_SESSION_COOKIE_SECURE: "false"
+      DJANGO_CSRF_COOKIE_SECURE: "false"
+      DATABASE_URL: sqlite:////app/data/db/db.sqlite3
+      PUBLIC_BASE_URL: http://localhost:8000
+    volumes:
+      - ./data/local-db:/app/data/db
+      - ./data/media:/app/data/media
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=1777
+    ports:
+      - "127.0.0.1:8000:8000"
+    command: ["/bin/sh", "-c", "python manage.py migrate --noinput && python manage.py loadcontent && gunicorn config.wsgi:application --config python:config.gunicorn"]

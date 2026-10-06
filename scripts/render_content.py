@@ -9,8 +9,8 @@ The script also enforces the prose rules shared by the Ctrl-Alt-GG repos:
 every bilingual string needs both `hu` and `en`, and no file under content/
 may contain em dashes, en dashes, the ellipsis character, curly quotes or
 non-breaking spaces. It exits non-zero on the first violation so CI can run it.
-
-Only PyYAML is required.
+The rules live in src/signage/content/lint.py and are shared with the Django
+loader; this script only needs PyYAML, not Django.
 """
 
 from __future__ import annotations
@@ -24,35 +24,12 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "content"
 OUTPUT = ROOT / "docs" / "content.md"
 
-BANNED = {
-    "–": "en dash",
-    "—": "em dash",
-    "…": "ellipsis character",
-    "‘": "curly quote",
-    "’": "curly quote",
-    "“": "curly quote",
-    "”": "curly quote",
-    " ": "non-breaking space",
-}
-
-LAYOUTS = {
-    "hero",
-    "list",
-    "split",
-    "qr",
-    "credentials",
-    "now_next",
-    "schedule",
-    "servers",
-    "tournament",
-    "streams",
-    "countdown",
-}
-LANGS = ("hu", "en")
-
-
-class LintError(Exception):
-    pass
+sys.path.insert(0, str(ROOT / "src"))
+from signage.content.lint import (  # noqa: E402
+    LintError,
+    lint_all,
+    lint_text,
+)
 
 
 def load(name: str) -> dict:
@@ -63,79 +40,7 @@ def load(name: str) -> dict:
 
 def lint_glyphs() -> None:
     for path in sorted(CONTENT.glob("*.yaml")):
-        text = path.read_text(encoding="utf-8")
-        for lineno, line in enumerate(text.splitlines(), start=1):
-            for glyph, label in BANNED.items():
-                if glyph in line:
-                    raise LintError(f"{path.relative_to(ROOT)}:{lineno}: {label} found")
-
-
-def require_bilingual(value: object, where: str) -> dict:
-    if not isinstance(value, dict):
-        raise LintError(f"{where}: expected a mapping with hu and en")
-    for lang in LANGS:
-        if not isinstance(value.get(lang), str) or not value[lang].strip():
-            raise LintError(f"{where}: missing or empty '{lang}'")
-    return value
-
-
-def lint_slides(slides: dict, phases: set[str]) -> None:
-    seen: set[str] = set()
-    for slide in slides["slides"]:
-        sid = slide.get("id")
-        if not sid or sid in seen:
-            raise LintError(f"slide id missing or duplicated: {sid!r}")
-        seen.add(sid)
-        where = f"slides.yaml:{sid}"
-        if slide.get("layout") not in LAYOUTS:
-            raise LintError(f"{where}: unknown layout {slide.get('layout')!r}")
-        slide_phases = slide.get("phases")
-        if slide_phases != "all":
-            if not isinstance(slide_phases, list) or not slide_phases:
-                raise LintError(f"{where}: phases must be 'all' or a non-empty list")
-            unknown = set(slide_phases) - phases
-            if unknown:
-                raise LintError(f"{where}: unknown phases {sorted(unknown)}")
-        if slide.get("bilingual_mode", "alternate") not in ("alternate", "stacked"):
-            raise LintError(f"{where}: bilingual_mode must be alternate or stacked")
-        for key in ("kicker", "title", "body", "footer", "empty"):
-            if key in slide:
-                require_bilingual(slide[key], f"{where}.{key}")
-        if "title" not in slide:
-            raise LintError(f"{where}: title is required")
-        for index, item in enumerate(slide.get("items", [])):
-            require_bilingual(item, f"{where}.items[{index}]")
-        if len(slide.get("items", [])) > 6:
-            raise LintError(f"{where}: at most 6 items are shown on one slide")
-        for cindex, column in enumerate(slide.get("columns", [])):
-            require_bilingual(column.get("title"), f"{where}.columns[{cindex}].title")
-            for index, item in enumerate(column.get("items", [])):
-                require_bilingual(item, f"{where}.columns[{cindex}].items[{index}]")
-        if slide.get("layout") == "split" and len(slide.get("columns", [])) != 2:
-            raise LintError(f"{where}: split layout needs exactly two columns")
-        link = slide.get("link")
-        if link and "label" in link:
-            require_bilingual(link["label"], f"{where}.link.label")
-
-
-def lint_schedule(schedule: dict, games: set[str]) -> None:
-    for index, entry in enumerate(schedule["entries"]):
-        where = f"schedule.yaml:entries[{index}]"
-        if entry.get("type") not in ("play", "break", "highlight"):
-            raise LintError(f"{where}: type must be play, break or highlight")
-        require_bilingual(entry.get("title"), f"{where}.title")
-        if "note" in entry:
-            require_bilingual(entry["note"], f"{where}.note")
-        if entry.get("game") and entry["game"] not in games:
-            raise LintError(f"{where}: unknown game slug {entry['game']!r}")
-
-
-def lint_announcements(announcements: dict) -> None:
-    for template in announcements["templates"]:
-        where = f"announcements.yaml:{template.get('key')}"
-        if template.get("level") not in ("info", "warning", "urgent"):
-            raise LintError(f"{where}: level must be info, warning or urgent")
-        require_bilingual(template.get("text"), f"{where}.text")
+        lint_text(path.read_text(encoding="utf-8"), str(path.relative_to(ROOT)))
 
 
 def md_escape(text: str) -> str:
@@ -298,7 +203,7 @@ def render(event: dict, slides: dict, schedule: dict, announcements: dict) -> st
     ev = event["event"]
     venue = event["venue"]
     wifi = event["wifi"]
-    out.append(f"- Event: {ev['name']}, tagline \"{ev['tagline']}\"")
+    out.append(f'- Event: {ev["name"]}, tagline "{ev["tagline"]}"')
     out.append(f"- Starts: {ev['starts_at']} ({ev['timezone']}), ends: {ev['ends_at']}")
     out.append(f"- Venue: {venue['name']}, {venue['address']}")
     out.append(f"- Entrance: {venue['entrance_note']['hu']} / {venue['entrance_note']['en']}")
@@ -345,10 +250,7 @@ def main(argv: list[str]) -> int:
         schedule = load("schedule.yaml")
         games = load("games.yaml")
         announcements = load("announcements.yaml")
-        phases = {phase["key"] for phase in event["phases"]}
-        lint_slides(slides, phases)
-        lint_schedule(schedule, {game["slug"] for game in games["games"]})
-        lint_announcements(announcements)
+        lint_all(event, slides, schedule, games, announcements)
     except LintError as error:
         print(f"lint error: {error}", file=sys.stderr)
         return 1

@@ -1,0 +1,24 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+{% block content %}
+<div id="content-main">
+  <form method="post">
+    {% csrf_token %}
+    <fieldset class="module aligned">
+      {% for field in form %}
+      <div class="form-row">
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+      </div>
+      {% endfor %}
+    </fieldset>
+    {% if template %}
+      <p><strong>HU:</strong> {{ template.text_hu }}<br><strong>EN:</strong> {{ template.text_en }}</p>
+    {% endif %}
+    <div class="submit-row">
+      <input type="submit" name="pick" value="{% translate 'Load template fields' %}">
+      {% if template %}<input type="submit" name="create" class="default" value="{% translate 'Publish announcement' %}">{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

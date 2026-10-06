@@ -218,3 +218,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Signage project
+/data/
+/frontend/node_modules/
+/frontend/dist/
+/.venv/
+/.env
+/docs/openapi.yaml.bak

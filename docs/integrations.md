@@ -325,24 +325,25 @@ Ansible for the venue infrastructure. What matters for the signage:
 6. Every deployable builds to a non-root OCI image on GHCR; the venue can
    run everything with no internet.
 
-## 9. Environment variables for integrations
+## 9. Configuring the connections
 
-| Variable | Default | Meaning |
-|---|---|---|
-| `PROJECTILE_API_BASE_URL` | empty (slide disabled) | e.g. `https://servers.ctrl-alt-gg.hu/api` |
-| `PROJECTILE_CACHE_SECONDS` | `10` | Minimum seconds between upstream calls |
-| `PROJECTILE_MIRROR_ANNOUNCEMENT` | `false` | Show Projectile's announcement as an info bar |
-| `BRACKET_API_BASE_URL` | empty (slide disabled) | e.g. `https://bracket.ctrl-alt-gg.hu/api` |
-| `BRACKET_TOURNAMENT_ID` | empty (first open tournament) | Pin a tournament id |
-| `BRACKET_CACHE_SECONDS` | `15` | |
-| `STREAMS_API_BASE_URL` | empty (slide disabled) | e.g. `https://streams.ctrl-alt-gg.hu/api/v1` |
-| `STREAMS_CACHE_SECONDS` | `15` | |
-| `INTEGRATION_CONNECT_TIMEOUT` | `2.0` | httpx connect timeout, seconds |
-| `INTEGRATION_READ_TIMEOUT` | `4.0` | httpx read timeout, seconds |
-| `INTEGRATION_VERIFY_TLS` | `true` | Set to a CA bundle path for the venue CA, or `false` only in development |
+Connection settings are not environment variables. Each upstream has one
+row in the admin under Signage, Integrations (created by the initial
+migration):
 
-A live slide whose base URL is empty is excluded from the bundle and the
-admin lists it as "disabled by configuration". A live slide whose upstream
-fails is still included with its last good data (flagged stale) for up to an
-hour, then falls back to its `empty` text. The room never sees a stack trace,
-a spinner or the word "error".
+| Field | Meaning |
+|---|---|
+| Enabled | Off by default. A disabled integration drops its slides from the rotation and the overview lists them as disabled. |
+| Base URL | API root without a trailing slash, for example `https://servers.ctrl-alt-gg.hu/api`, `https://bracket.ctrl-alt-gg.hu/api`, `https://streams.ctrl-alt-gg.hu/api/v1` |
+| Authentication | None, HTTP Basic (username and password), Bearer token, or a custom header with a token |
+| Verify TLS, CA bundle | Keep verification on; point the bundle at the venue CA when the certificates are private |
+| Connect and read timeout | Seconds; defaults 2 and 4 |
+| Cache seconds | Minimum time between upstream calls, however many kiosks poll |
+| Tournament id | Bracket only; empty picks the first open tournament |
+| Mirror announcement | Projectile only; shows its announcement as an info bar |
+
+Behaviour on failure is the same for all three: the last good response is
+kept for `SIGNAGE_LAST_GOOD_SECONDS` (default 3600, an environment variable
+because it is a deployment choice, not an event choice) and shown flagged
+as stale; after that the slide shows its `empty` text. The room never sees
+a stack trace, a spinner or the word "error".

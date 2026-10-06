@@ -1,0 +1,115 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: false;
+}
+
+/* Brand tokens shared with the other Ctrl-Alt-GG sites; surfaces from the artwork. */
+@theme {
+  --font-sans: "Inter Variable", "Inter", system-ui, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+  --color-brand-300: #ff7676;
+  --color-brand-400: #f14848;
+  --color-brand-500: #dd2525;
+  --color-brand-600: #aa0000;
+  --color-brand-700: #770000;
+  --color-brand-800: #560000;
+  --color-accent-400: #e8b923;
+  --color-accent-500: #c8960c;
+
+  --color-field: #130404;
+  --color-key: #1c0707;
+  --color-key-top: #260d0d;
+  --color-ink: #ffffff;
+  --color-ink-muted: #a89494;
+  --color-ink-dim: #7a4d4d;
+
+  --radius-card: 24px;
+  --shadow-card: 0 2px 4px rgb(0 0 0 / 0.3), 0 20px 50px rgb(0 0 0 / 0.35);
+  --animate-pulse-dot: pulse-dot 1s ease-in-out infinite;
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.25; }
+  }
+}
+
+/* daisyUI theme: one dark theme built from the tokens above. */
+@plugin "daisyui/theme" {
+  name: "cag";
+  default: true;
+  prefersdark: true;
+  color-scheme: dark;
+  --color-base-100: #130404;
+  --color-base-200: #1c0707;
+  --color-base-300: #260d0d;
+  --color-base-content: #ffffff;
+  --color-primary: #aa0000;
+  --color-primary-content: #ffffff;
+  --color-secondary: #e8b923;
+  --color-secondary-content: #130404;
+  --color-accent: #e8b923;
+  --color-accent-content: #130404;
+  --color-neutral: #260d0d;
+  --color-neutral-content: #a89494;
+  --color-info: #a89494;
+  --color-info-content: #130404;
+  --color-success: #3a7d3a;
+  --color-success-content: #ffffff;
+  --color-warning: #e8b923;
+  --color-warning-content: #130404;
+  --color-error: #aa0000;
+  --color-error-content: #ffffff;
+  --radius-selector: 9999px;
+  --radius-field: 12px;
+  --radius-box: 24px;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+@utility surface {
+  background-color: color-mix(in srgb, #ffffff 6%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 10%, transparent);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility clamp-2 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+@utility clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-field);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .embla__fade *,
+  .animate-pulse-dot {
+    animation: none !important;
+    transition: none !important;
+  }
+}
