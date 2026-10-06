@@ -1,0 +1,177 @@
+# The published schedule, copied from the homepage's schedule page
+# (content/schedule/_index.md and _index.en.md in Ctrl-Alt-GG/homepage).
+# Loaded into ScheduleEntry rows by `manage.py loadcontent`.
+#
+# Fields
+#   time        local wall-clock time, HH:MM
+#   day_offset  0 for the first day, 1 for after midnight. The app combines
+#               event.starts_at's date, day_offset and time into one timestamp.
+#   type        play | break | highlight. Drives the accent colour, see docs/design.md.
+#   game        slug from content/games.yaml, or empty.
+#   label       game or activity name shown as a pill. Same in both languages.
+#   title, note bilingual.
+#
+# The schedule is a guideline. Every slide that shows it must carry the line
+# "A menetrend csak iránymutató" / "The schedule is only a guideline".
+
+entries:
+  - time: "15:30"
+    day_offset: 0
+    type: play
+    game: minecraft
+    label: "Minecraft"
+    title:
+      hu: "Kezdés egy kis építkezéssel"
+      en: "Start with a bit of building"
+  - time: "17:00"
+    day_offset: 0
+    type: play
+    game: tf2
+    label: "Team Fortress 2"
+    title:
+      hu: "Szedd össze a csapatod"
+      en: "Round up your team"
+  - time: "18:40"
+    day_offset: 0
+    type: break
+    game: ""
+    label: ""
+    title:
+      hu: "Vacsoraszünet"
+      en: "Dinner break"
+    note:
+      hu: "Egyél és igyál valamit"
+      en: "Grab some food and a drink"
+  - time: "19:00"
+    day_offset: 0
+    type: play
+    game: left4dead2
+    label: "Left 4 Dead 2"
+    title:
+      hu: "Négyfős túlélés"
+      en: "Four-player survival"
+  - time: "20:00"
+    day_offset: 0
+    type: highlight
+    game: cs2
+    label: "Counter-Strike 2"
+    title:
+      hu: "Indul a CS2-verseny"
+      en: "The CS2 tournament begins"
+    note:
+      hu: "Szurkolj, vagy készülj a saját meccsedre"
+      en: "Cheer from the sidelines or get ready for your match"
+  - time: "20:00"
+    day_offset: 0
+    type: play
+    game: openttd
+    label: "OpenTTD"
+    title:
+      hu: "Közös vasútépítés a verseny alatt"
+      en: "Build railways while the tournament runs"
+    note:
+      hu: "A CS2-versennyel egyszerre indul"
+      en: "Starts at the same time as the CS2 tournament"
+  - time: "22:00"
+    day_offset: 0
+    type: highlight
+    game: ""
+    label: ""
+    title:
+      hu: "CS2-díjátadó"
+      en: "CS2 awards"
+    note:
+      hu: "A közös gyülekezőnél találkozunk, a díjátadó nagyjából 15 percig tart"
+      en: "Meet in the shared gathering area. The ceremony takes about 15 minutes"
+  - time: "22:15"
+    day_offset: 0
+    type: play
+    game: garrys-mod
+    label: "Garry's Mod"
+    title:
+      hu: "Egy kis hülyülés a díjátadó után"
+      en: "Mess around after the awards"
+  - time: "23:00"
+    day_offset: 0
+    type: play
+    game: xonotic
+    label: "Xonotic"
+    title:
+      hu: "Pörgős meccsek éjfél előtt"
+      en: "Fast-paced matches before midnight"
+  - time: "23:40"
+    day_offset: 0
+    type: break
+    game: ""
+    label: ""
+    title:
+      hu: "Éjféli szünet"
+      en: "Midnight break"
+    note:
+      hu: "Kávé vagy energiaital, ha még kell"
+      en: "Coffee or an energy drink if you still need one"
+  - time: "00:00"
+    day_offset: 1
+    type: play
+    game: scp
+    label: "SCP: Secret Laboratory"
+    title:
+      hu: "Éjféli horror"
+      en: "Midnight horror"
+  - time: "01:40"
+    day_offset: 1
+    type: break
+    game: ""
+    label: ""
+    title:
+      hu: "Rövid szünet"
+      en: "Quick break"
+    note:
+      hu: "Igyál vizet, mosd meg az arcod, aztán mehet tovább"
+      en: "Drink some water, wash your face, then carry on"
+  - time: "02:00"
+    day_offset: 1
+    type: play
+    game: satisfactory
+    label: "Satisfactory"
+    title:
+      hu: "Hajnali gyárépítés"
+      en: "Late-night factory building"
+  - time: "03:40"
+    day_offset: 1
+    type: break
+    game: ""
+    label: ""
+    title:
+      hu: "Rövid szünet"
+      en: "Quick break"
+    note:
+      hu: "Nyújtózz és igyál valamit"
+      en: "Stretch your legs and get a drink"
+  - time: "04:00"
+    day_offset: 1
+    type: play
+    game: css
+    label: "Counter-Strike: Source"
+    title:
+      hu: "Régi kedvenc hajnalban"
+      en: "An old favourite at dawn"
+  - time: "05:40"
+    day_offset: 1
+    type: break
+    game: ""
+    label: ""
+    title:
+      hu: "Reggeliszünet"
+      en: "Breakfast break"
+    note:
+      hu: "Kávé és valami harapnivaló"
+      en: "Coffee and a quick bite"
+  - time: "06:00"
+    day_offset: 1
+    type: play
+    game: supertuxkart
+    label: "SuperTuxKart"
+    title:
+      hu: "Egy utolsó verseny napfelkeltekor"
+      en: "One last race at sunrise"
