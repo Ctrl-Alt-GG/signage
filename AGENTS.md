@@ -1,93 +1,122 @@
 # AGENTS.md: Ctrl-Alt-GG Signage
 
 > Canonical guide for AI coding agents (GitHub Copilot, Cursor, Codex, Claude
-> and friends) and for humans working on this repository. Read this first,
-> then the documents it points to, in the order given.
+> and friends) and for humans working on this repository. Read this first.
+> The code is the source of truth for everything this file does not state:
+> there is no docs folder, and generated files are never committed.
 
 ## 1. What this repo is
 
-The digital signage for the Ctrl-Alt-GG LAN party: a Django application
-that rotates bilingual (Hungarian first, English second) slides on the
-organizers' background artwork, mixes in live data from the other
-Ctrl-Alt-GG systems (schedule, game servers, tournament, streams), and gives
-organizers a Django admin to steer it during the event. It runs on the
-venue network only.
+The digital signage for the Ctrl-Alt-GG LAN party: bilingual (Hungarian
+first, English second) slides on the organizers' background artwork, mixed
+with live data from the other Ctrl-Alt-GG systems (schedule, game servers,
+tournament, streams), steered from a Django admin during the event. It runs
+on the venue network only.
 
-The application is built: a Django 6 backend (`src/`) with the admin as the
-only management UI, and a React 19 + TypeScript + Tailwind CSS v4 display
-(`frontend/`) that talks only to the backend's JSON API. `docs/spec.md`
-records the decisions and the acceptance checks.
+Three containers, one per component, plus Postgres:
 
-## 2. Reading order
+| Component | Image | Runs |
+|---|---|---|
+| backend | `docker/backend.Dockerfile`: Python on Debian slim | Django admin (the only management UI), the JSON API, the upstream integrations, the YAML content import |
+| frontend | `docker/frontend.Dockerfile`: rootless nginx on Debian | The React 19 + TypeScript + Tailwind CSS v4 display built by Vite. nginx also proxies `/api/`, `/admin/` and `/health/` to the backend, so a kiosk or an organizer sees one origin |
+| minio | `docker/minio.Dockerfile`: MinIO built from source on Debian | The S3 bucket holding Django's static files and the uploaded background; browsers load them from here |
 
-1. `docs/spec.md`: decisions, data model, contracts, milestones, done criteria.
-2. `docs/design.md`: the background anatomy, the content-safe area, tokens,
-   type scale, the eleven layouts, motion and readability rules, QA.
-3. `docs/integrations.md`: the sibling systems, their endpoints and JSON
-   shapes, environment variables, inherited conventions.
-4. `docs/content.md`: the copy on the screens, rendered from `content/*.yaml`.
-5. `content/*.yaml`: the source of truth for the copy, the schedule, the
-   games, the event facts and the announcement templates.
+Each image contains only what its component needs to run. No alpine
+variants anywhere.
 
-If a document and this file disagree, the document wins for its own topic
-and this file needs a fix in the same PR.
-
-## 3. Source of truth
+## 2. Where things live
 
 | Fact | Lives in |
 |---|---|
-| What to build, in which order, and when it is done | `docs/spec.md` |
-| Pixel values, colours, fonts, layout rules | `docs/design.md` |
-| Upstream URLs, JSON shapes, polling rules | `docs/integrations.md` |
-| Slide copy | `content/slides.yaml` (rendered to `docs/content.md`) |
+| Event facts, Wi-Fi, links, organizers, phases | `content/event.yaml` |
+| Slide copy | `content/slides.yaml` |
 | Schedule rows | `content/schedule.yaml` |
 | Games, colours, Projectile aliases | `content/games.yaml` |
-| Venue, Wi-Fi, links, organizers, phases | `content/event.yaml` |
 | Announcement templates | `content/announcements.yaml` |
+| Data model and admin | `src/signage/models.py`, `src/signage/admin.py` |
+| YAML import and the prose lint rules | `src/signage/content/` |
+| What a screen shows: passes, phases, schedule view | `src/signage/rendering/` |
+| The JSON API and its serializers (the frontend contract) | `src/signage/api/` |
+| Upstream systems: Projectile, Bracket, Streams | `src/signage/integrations/` |
+| Settings, file storage wiring, gunicorn | `src/config/` |
+| Stage geometry and the content-safe area | `frontend/src/lib/stage.ts` |
+| Layouts, bilingual rendering, design tokens | `frontend/src/layouts/`, `frontend/src/lib/i18n.tsx`, `frontend/src/app.css` |
+| Container images and the nginx configuration | `docker/` |
+| Stacks and their variables | `compose.yaml`, `compose.local.yaml`, `.env.example` |
+| Pipeline | `.github/workflows/pipeline.yml` |
 | The background artwork | `assets/background.svg` (never edited) |
-| Tool versions, once the app exists | `pyproject.toml`, `uv.lock`, `.python-version`, `docker/web.Dockerfile` |
+| Tool versions | `pyproject.toml`, `uv.lock`, `.python-version`, `frontend/package.json`, `frontend/.nvmrc`, `docker/*.Dockerfile` |
 
 Do not repeat versions or URLs in prose; link to the file that pins them.
 
-## 4. How to work
+## 3. Settled decisions
 
-- One milestone per pull request, in the order `docs/spec.md` section 15
-  gives. Each PR's checklist is that milestone's acceptance list plus the
-  definition of done in section 16.
-- Decisions in `docs/spec.md` section 1 are settled. If one cannot be
-  honoured, say why in the PR description and choose the nearest
-  alternative; do not reopen the discussion in code comments.
-- Content changes go through the YAML files, then
-  `python3 scripts/render_content.py` to regenerate `docs/content.md`.
-  Never edit `docs/content.md` by hand; CI runs the script with `--check`.
-- Keep the copy honest to its sources. The slides condense pages from the
-  homepage and Care; when those pages change, change the YAML, not the
-  other way round. Anything that only an organizer knows (Wi-Fi SSID,
-  assembly point, dates) stays `CHANGE-ME` in the seed and is set in the
-  admin; the app refuses to show a slide with an unresolved value.
-- Prefer boring code: Django templates, one JavaScript file, stock admin.
-  No new framework, bundler, or service without a line in
-  `docs/spec.md` section 1 explaining why.
+- Backend: the latest Django. Django plugins and Python libraries first;
+  custom code only when neither suffices. What is in use and why is
+  visible in `pyproject.toml` and the settings.
+- Frontend: the latest React and Tailwind CSS v4 with daisyUI. React
+  plugins and TypeScript libraries first. Utilities, not custom CSS; one
+  stylesheet, `frontend/src/app.css`, holds the tokens.
+- Only the backend talks to other systems. The frontend talks only to the
+  backend API. Upstream REST endpoints and credentials are configured in
+  the admin (Integration rows); systems without an API are fed through
+  the admin by hand.
+- Organizers manage everything in the Django admin. Slides, schedule,
+  games and event facts load from `content/*.yaml` (`loadcontent` or the
+  admin import). The background SVG is exchangeable in the admin.
+- Files: with `STORAGE_ENDPOINT_URL` set, django-storages keeps static
+  files and uploads in the S3 bucket and `manage.py ensurestorage` creates
+  the bucket with an anonymous-read policy; without it the filesystem
+  under `data/` is used (development). The backend never serves static
+  files in production.
+- Access rights are fixed: the API is read-only and anonymous, the admin
+  is staff-only.
+- Generated files are git-ignored and never committed:
+  `frontend/openapi.yaml`, `frontend/src/api/schema.d.ts`,
+  `frontend/dist/`, `*.tsbuildinfo`, `docs/`, `screenshots/`, `data/`.
 
-## 5. Conventions
+## 4. Display invariants
+
+- The stage is 1920x1080 and every piece of text stays inside the
+  content-safe area, x 96 to 1824 and y 204 to 768
+  (`frontend/src/lib/stage.ts`; overridable in Display settings).
+- Every slide is bilingual on one pass: Hungarian large, English beneath
+  at 0.72em; one-line labels join the two with a middle dot. Hungarian is
+  required, English falls back to Hungarian.
+- Live slides fall back to last-good data, then to their `empty` text.
+  The room never sees an error.
+- Nothing is fetched from the public internet by the display: fonts,
+  icons and QR codes are bundled or generated.
+- Tailwind v4 syntax only (`@import "tailwindcss"`, `@theme`, `@source`).
+
+## 5. How to work
+
+- Content changes go through the YAML files;
+  `python3 scripts/render_content.py --check` lints them (both languages
+  present, bullet limits, banned typography). Without `--check` it also
+  writes a Markdown preview to the git-ignored `docs/content.md`.
+- Keep the copy honest to its sources (the homepage and Care). Anything
+  only an organizer knows stays `CHANGE-ME` in the seed and is set in the
+  admin; the app drops a slide with an unresolved value.
+- API changes: edit the serializers, regenerate the schema and the
+  TypeScript types (section 7), then adjust the frontend.
+- No new framework, bundler, queue or storage service without a line in
+  section 3 saying why.
+- `.github/workflows/**` changes only when the workflow is the subject of
+  the change.
+
+## 6. Conventions
 
 - Python 3.14, Django 6, `uv`, `ruff` (line length 100, rules
   `E F I N UP B SIM DJ RUF`), `src/` layout, settings split
   `base/development/production`, mirrored from `Ctrl-Alt-GG/streams`.
-- Prefer Django plugins and Python libraries over custom code; the ones in
-  use are listed in `docs/spec.md` section 1. Organizers manage everything
-  in the Django admin; there is no other management UI.
 - Frontend: React 19, TypeScript, Vite, Tailwind CSS v4 (`@tailwindcss/vite`)
-  with daisyUI components. One stylesheet, `frontend/src/app.css`, holding
-  the tokens; layouts use utilities, not custom CSS. Prefer React plugins
-  and TypeScript libraries over custom code. The frontend talks only to the
-  backend API; upstream systems are the backend's business.
+  with daisyUI components, TanStack Query for the API, openapi-fetch with
+  types generated from the backend schema.
 - Bilingual content is data: `_hu` and `_en` columns, Hungarian required.
-  UI chrome strings go through `gettext` with Hungarian translations in
-  `src/locale/hu`.
 - Hungarian is written natively, informal "te", second person, present
   tense. English is idiomatically independent, not a calque.
-- Prose rules from the homepage apply to copy, docs, comments and commit
+- Prose rules from the homepage apply to copy, comments and commit
   messages: no em dashes, no en dashes, no ellipsis character, no curly
   quotes, no non-breaking spaces, no emoji in text, no filler
   superlatives. Hyphen for ranges (`10-15 perc`), three periods for an
@@ -109,58 +138,61 @@ because it lists the banned glyphs in order to reject them. Use a UTF-8
 locale: under `LC_ALL=C` a byte-wise bracket match flags accented letters
 such as `Ó` and `Ü` by mistake.
 
-## 6. Running the project
+## 7. Running the project
 
 ```bash
-uv sync                                   # Python 3.14 and the backend dependencies
-(cd frontend && pnpm install && pnpm build)   # the React display into frontend/dist
+uv sync                                    # Python 3.14 and the backend dependencies
 uv run python manage.py migrate
-uv run python manage.py loadcontent       # content/*.yaml into the database
+uv run python manage.py loadcontent        # content/*.yaml into the database
 uv run python manage.py createsuperuser
-uv run python manage.py runserver
-# http://127.0.0.1:8000/display/main/  and  http://127.0.0.1:8000/admin/
+uv run python manage.py spectacular --file frontend/openapi.yaml --validate
+(cd frontend && pnpm install && pnpm openapi)   # TypeScript types from the schema
+uv run python manage.py runserver          # admin and API on :8000
+(cd frontend && pnpm dev)                  # the display on :5173, proxying the backend
 ```
 
-Frontend development with hot reload: run `pnpm dev` in `frontend/` and start
-Django with `DJANGO_VITE_DEV_MODE=true`; the display page then loads the
-assets from the Vite dev server.
+Open <http://localhost:5173/> for the display and
+<http://localhost:5173/admin/> for the admin (the Vite proxy forwards it,
+like nginx does in production). The display route is
+`/display/<screen>/`; the root redirects to the default screen.
 
-Checks that must pass before a commit:
+The whole stack in containers, built from this checkout:
+`docker compose -f compose.local.yaml up --build`, then
+<http://localhost:8080/>. The published images run with `compose.yaml`
+and a `.env` copied from `.env.example`.
+
+## 8. Checks before a commit
 
 ```bash
 uv run ruff check . && uv run ruff format --check .
-uv run python scripts/render_content.py --check
-uv run python manage.py check && uv run python manage.py makemigrations --check --dry-run
-uv run pytest            # includes Django checks, migrations, content and OpenAPI sync
-(cd frontend && pnpm typecheck && pnpm test && pnpm build)
-uv run python manage.py spectacular --file docs/openapi.yaml --validate   # then regenerate the TS types if it changed
-(cd frontend && pnpm openapi)
-uv run python scripts/screenshots.py --base-url http://127.0.0.1:8000     # with runserver up
+uv run pytest                              # Django checks, migrations, content lint, schema validity included
+uv run python manage.py spectacular --file frontend/openapi.yaml --validate
+(cd frontend && pnpm openapi && pnpm typecheck && pnpm test && pnpm build)
+(cd frontend && pnpm preview) &            # :4173, proxies the backend on :8000
+uv run python scripts/screenshots.py       # safe area, clipping and overflow checks
 ```
 
-## 7. Do-not-touch list
+The pipeline runs the same commands, then builds the three images and,
+on `main` and `v*` tags, publishes them to GHCR.
+
+## 9. Do-not-touch list
 
 - `assets/background.svg`: the organizers' artwork, stored verbatim.
-- `docs/content.md`: generated by `scripts/render_content.py`.
-- `docs/openapi.yaml` and `frontend/src/api/schema.d.ts`: generated from the
-  DRF serializers (`manage.py spectacular`, then `pnpm openapi`).
-- `frontend/dist/**`, `data/**`, compiled CSS: generated, git-ignored.
-- `docs/screenshots/**`: generated by `scripts/screenshots.py`; regenerate,
-  never hand-edit.
+- Generated files are regenerated, never edited or committed: the OpenAPI
+  schema, `frontend/src/api/schema.d.ts`, `frontend/dist/`,
+  `screenshots/`, `docs/`.
 - `.github/workflows/**` unless the workflow is the subject of the change.
 - Content of `LICENSE` (GPL-3.0).
 
-## 8. Definition of done
+## 10. Definition of done
 
-A change is done when the checklist in `docs/spec.md` section 16 is
-satisfied and the milestone's acceptance list passes. "It renders on my
-machine" is not done; the screenshot script and the safe-area test are.
+A change is done when the checks in section 8 pass, the screenshot script
+passes for anything that touches layouts or styles, and this file reflects
+any changed behaviour or convention. "It renders on my machine" is not
+done; the screenshot script and the test suite are.
 
-## 9. Where the other agent files fit
+## 11. Where the other agent files fit
 
 - `.github/copilot-instructions.md`: thin always-loaded pointer to this
   document with the invariants Copilot Chat must never break.
 - `.github/PULL_REQUEST_TEMPLATE.md`: the PR checklist.
-- Path-scoped `.github/instructions/*.instructions.md` files may be added
-  per milestone (templates, CSS, integrations) following the pattern used
-  by `Ctrl-Alt-GG/homepage`.

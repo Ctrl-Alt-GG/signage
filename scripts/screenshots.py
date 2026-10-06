@@ -2,10 +2,10 @@
 """Screenshot every slide in both languages and check the safe-area rules.
 
 Usage (with the Django server running and the frontend built):
-    uv run python scripts/screenshots.py --base-url http://127.0.0.1:8000
+    uv run python scripts/screenshots.py --base-url http://localhost:4173
 
-Writes docs/screenshots/<slide>-<lang>.png and exits non-zero when any visible text
-lies outside the content-safe area or a slide overflows its box (docs/design.md 9).
+Writes screenshots/<slide>-<lang>.png (git-ignored) and exits non-zero when any visible text
+lies outside the content-safe area or a slide overflows its box.
 """
 
 from __future__ import annotations
@@ -93,9 +93,9 @@ def chromium_path() -> str | None:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000")
+    parser.add_argument("--base-url", default="http://localhost:4173")
     parser.add_argument("--screen", default="main")
-    parser.add_argument("--out", default=str(ROOT / "docs" / "screenshots"))
+    parser.add_argument("--out", default=str(ROOT / "screenshots"))
     parser.add_argument(
         "--slides", nargs="*", help="Slide keys; default: all in content/slides.yaml"
     )

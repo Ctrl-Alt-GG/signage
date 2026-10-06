@@ -1,22 +1,84 @@
-# Local build of the production image against SQLite, for trying the container without
-# Postgres: `docker compose -f compose.local.yaml up --build`.
+# Build the three images from this checkout and run them against SQLite, for trying the
+# stack without a registry or Postgres: `docker compose -f compose.local.yaml up --build`.
+# The display is then at http://localhost:8080/ and the admin at http://localhost:8080/admin/.
+x-backend-environment: &backend-environment
+  DJANGO_SECRET_KEY: local-only-secret
+  DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+  DJANGO_SESSION_COOKIE_SECURE: "false"
+  DJANGO_CSRF_COOKIE_SECURE: "false"
+  DATABASE_URL: sqlite:////app/data/db/db.sqlite3
+  PUBLIC_BASE_URL: http://localhost:8080
+  STORAGE_ENDPOINT_URL: http://minio:9000
+  STORAGE_PUBLIC_URL: http://localhost:9000
+  STORAGE_ACCESS_KEY: signage
+  STORAGE_SECRET_KEY: local-only-password
+
 services:
+  minio:
+    build:
+      context: .
+      dockerfile: docker/minio.Dockerfile
+    environment:
+      MINIO_ROOT_USER: signage
+      MINIO_ROOT_PASSWORD: local-only-password
+    volumes:
+      - ./data/local-minio:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  setup:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    environment: *backend-environment
+    restart: "no"
+    volumes:
+      - ./data/local-db:/app/data/db
+    tmpfs:
+      - /tmp:uid=10001,gid=10001,mode=1777
+    command:
+      - /bin/sh
+      - -c
+      - >-
+        python manage.py ensurestorage
+        && python manage.py migrate --noinput
+        && python manage.py collectstatic --noinput
+        && python manage.py loadcontent
+    depends_on:
+      minio:
+        condition: service_healthy
+
   web:
     build:
       context: .
-      dockerfile: docker/web.Dockerfile
-    environment:
-      DJANGO_SECRET_KEY: local-only-secret
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
-      DJANGO_SESSION_COOKIE_SECURE: "false"
-      DJANGO_CSRF_COOKIE_SECURE: "false"
-      DATABASE_URL: sqlite:////app/data/db/db.sqlite3
-      PUBLIC_BASE_URL: http://localhost:8000
+      dockerfile: docker/backend.Dockerfile
+    environment: *backend-environment
     volumes:
       - ./data/local-db:/app/data/db
-      - ./data/media:/app/data/media
     tmpfs:
       - /tmp:uid=10001,gid=10001,mode=1777
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/?format=json', timeout=2)"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      setup:
+        condition: service_completed_successfully
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+    environment:
+      BACKEND_URL: http://web:8000
     ports:
-      - "127.0.0.1:8000:8000"
-    command: ["/bin/sh", "-c", "python manage.py migrate --noinput && python manage.py loadcontent && gunicorn config.wsgi:application --config python:config.gunicorn"]
+      - "127.0.0.1:8080:8080"
+    depends_on:
+      web:
+        condition: service_healthy

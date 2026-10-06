@@ -23,6 +23,7 @@ from signage.content import loader as content_loader
 from signage.integrations.bracket import BracketClient
 from signage.integrations.projectile import ProjectileClient
 from signage.integrations.streams import StreamsClient
+from signage.links import display_url
 from signage.models import (
     Announcement,
     AnnouncementTemplate,
@@ -388,7 +389,7 @@ class SlideAdmin(YamlImportMixin, admin.ModelAdmin):
     @admin.display(description=_("Preview"))
     def preview_links(self, obj):
         screen = DisplaySettings.get_solo().default_screen_slug
-        base = reverse("signage:display", kwargs={"slug": screen})
+        base = display_url(screen)
         return format_html(
             '<a href="{}?preview={}&lang=hu" target="_blank">HU</a> | '
             '<a href="{}?preview={}&lang=en" target="_blank">EN</a>',
@@ -420,7 +421,7 @@ class ScreenAdmin(admin.ModelAdmin):
 
     @admin.display(description=_("Display"))
     def open_link(self, obj):
-        url = reverse("signage:display", kwargs={"slug": obj.slug})
+        url = display_url(obj.slug)
         return format_html('<a href="{}" target="_blank">{}</a>', url, url)
 
 
@@ -614,7 +615,7 @@ def overview(request):
         screens.append(
             {
                 "screen": screen,
-                "url": reverse("signage:display", kwargs={"slug": screen.slug}),
+                "url": display_url(screen.slug),
                 "passes": len(bundle["passes"]),
                 "warnings": bundle["warnings"],
                 "announcement": bundle["announcement"],

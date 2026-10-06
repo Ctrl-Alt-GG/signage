@@ -1,5 +1,5 @@
 """Bracket: the tournament system. Public endpoints for open tournaments; match status
-is derived the way Bracket's own frontend does it. See docs/integrations.md section 5."""
+is derived the way Bracket's own frontend does it."""
 
 from __future__ import annotations
 

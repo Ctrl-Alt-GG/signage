@@ -9,6 +9,7 @@ export type SlideItem = components["schemas"]["SlideItem"];
 export type Announcement = components["schemas"]["Announcement"];
 export type Bilingual = components["schemas"]["Bilingual"];
 export type ScheduleEntryView = components["schemas"]["ScheduleEntryView"];
+export type ScreenListItem = components["schemas"]["ScreenListItem"];
 export type Lang = "hu" | "en";
 export type PassLang = Lang | "both";
 
@@ -39,6 +40,14 @@ export async function fetchBundle(
   });
   if (!result.data) {
     throw new Error(`bundle request failed with ${result.response.status}`);
+  }
+  return result.data;
+}
+
+export async function fetchScreens(client: ApiClient): Promise<ScreenListItem[]> {
+  const result = await client.GET("/api/v1/screens/", { cache: "no-store" });
+  if (!result.data) {
+    throw new Error(`screen list request failed with ${result.response.status}`);
   }
   return result.data;
 }

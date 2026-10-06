@@ -2,12 +2,17 @@ import "@fontsource-variable/inter";
 import "@fontsource-variable/jetbrains-mono";
 import "./app.css";
 
-import { StrictMode } from "react";
+import { StrictMode, useMemo } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
+import { fetchScreens, makeClient } from "./api/client";
 import { App } from "./App";
+
+// The frontend only ever talks to the backend, which nginx (or the Vite dev server)
+// serves on the same origin.
+const API_BASE = "/api/v1/";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,17 +26,22 @@ const queryClient = new QueryClient({
   },
 });
 
-const body = document.body.dataset;
-const fallbackScreen = body.screen ?? "main";
-const apiBase = body.apiBase ?? "/api/v1/";
+/** Any path without a screen slug goes to the screen the admin marks as default. */
+function DefaultScreen() {
+  const client = useMemo(() => makeClient(window.location.origin), []);
+  const query = useQuery({ queryKey: ["screens"], queryFn: () => fetchScreens(client) });
+  if (query.isPending) return null;
+  const target = query.data?.find((screen) => screen.is_default) ?? query.data?.[0];
+  return <Navigate to={`/display/${target?.slug ?? "main"}/`} replace />;
+}
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <Routes>
-          <Route path="/display/:slug" element={<App apiBase={apiBase} fallbackScreen={fallbackScreen} />} />
-          <Route path="*" element={<App apiBase={apiBase} fallbackScreen={fallbackScreen} />} />
+          <Route path="/display/:slug" element={<App apiBase={API_BASE} />} />
+          <Route path="*" element={<DefaultScreen />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

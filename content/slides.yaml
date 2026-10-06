@@ -1,6 +1,5 @@
 # The signage copy. This file is the source of truth for the text on the
-# screens; docs/content.md is rendered from it by scripts/render_content.py
-# and must not be edited by hand.
+# screens; scripts/render_content.py lints it and renders a Markdown preview.
 #
 # `manage.py loadcontent` upserts every slide by `id`. Organizers then edit
 # in the Django admin; re-running loadcontent without `--overwrite` leaves
@@ -11,7 +10,7 @@
 # characters in Hungarian) and at most four or five per slide so both
 # languages fit the box; the screenshot check fails on clipped text.
 #
-# Field reference (see docs/spec.md section 3 for the model)
+# Field reference (the model is src/signage/models.py)
 #   id              stable key, lowercase, underscores.
 #   layout          hero | list | split | qr | credentials | now_next |
 #                   schedule | servers | tournament | streams | countdown.
@@ -531,7 +530,7 @@ slides:
       en: "Full bracket: bracket.ctrl-alt-gg.hu"
     notes: >
       Data comes from the Bracket public dashboard API, see
-      docs/integrations.md section 5. Live matches first, then up to four
+      src/signage/integrations/bracket.py. Live matches first, then up to four
       upcoming, then up to three finished with scores.
 
   # ----------------------------------------------------------------- late

@@ -18,6 +18,10 @@ class ScreenSerializer(serializers.Serializer):
     language_mode = serializers.ChoiceField(choices=("slide", "hu", "en"))
 
 
+class ScreenListItemSerializer(ScreenSerializer):
+    is_default = serializers.BooleanField()
+
+
 class PhaseSerializer(serializers.Serializer):
     key = serializers.SlugField()
     name = BilingualSerializer()

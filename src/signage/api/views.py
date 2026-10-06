@@ -16,6 +16,7 @@ from signage.api.serializers import (
     BundleSerializer,
     PhaseSerializer,
     ScheduleViewSerializer,
+    ScreenListItemSerializer,
     ScreenSerializer,
 )
 from signage.integrations.streams import StreamsClient
@@ -37,10 +38,14 @@ def _screen_or_404(slug: str) -> Screen:
 class ScreenListView(APIView):
     permission_classes = (AllowAny,)
 
-    @extend_schema(operation_id="screen_list", responses=ScreenSerializer(many=True))
+    @extend_schema(operation_id="screen_list", responses=ScreenListItemSerializer(many=True))
     def get(self, request):
-        screens = Screen.objects.filter(enabled=True)
-        return Response(ScreenSerializer(screens, many=True).data)
+        default_slug = DisplaySettings.get_solo().default_screen_slug
+        rows = [
+            {**ScreenSerializer(screen).data, "is_default": screen.slug == default_slug}
+            for screen in Screen.objects.filter(enabled=True)
+        ]
+        return Response(rows)
 
 
 class BundleView(APIView):

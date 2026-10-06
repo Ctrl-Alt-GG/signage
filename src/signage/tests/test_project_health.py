@@ -1,5 +1,5 @@
 """Checks a contributor would otherwise run by hand, kept in the test suite so CI needs
-a single command: Django system checks, migrations, content lint and generated files."""
+a single command: Django system checks, migrations, content lint and the API schema."""
 
 import subprocess
 import sys
@@ -25,7 +25,7 @@ def test_migrations_are_current():
         pytest.fail(f"model changes without a migration (exit {error.code})")
 
 
-def test_content_docs_are_in_sync():
+def test_content_lints():
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts" / "render_content.py"), "--check"],
         capture_output=True,
@@ -35,10 +35,5 @@ def test_content_docs_are_in_sync():
     assert result.returncode == 0, result.stderr or result.stdout
 
 
-def test_openapi_schema_is_committed(tmp_path):
-    generated = tmp_path / "openapi.yaml"
-    call_command("spectacular", "--file", str(generated), "--validate")
-    committed = (ROOT / "docs" / "openapi.yaml").read_text(encoding="utf-8")
-    assert generated.read_text(encoding="utf-8") == committed, (
-        "docs/openapi.yaml is stale: run manage.py spectacular --file docs/openapi.yaml"
-    )
+def test_openapi_schema_is_valid(tmp_path):
+    call_command("spectacular", "--file", str(tmp_path / "openapi.yaml"), "--validate")

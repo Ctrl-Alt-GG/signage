@@ -2,27 +2,32 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
-// Built assets are served by Django (WhiteNoise) under /static/display/ and
-// referenced from the display template through django-vite's manifest reader.
+// The build is a static site served by nginx (docker/frontend.Dockerfile), which also
+// proxies the backend paths. In development Vite plays that role: it serves the app and
+// forwards the same paths to the Django development server.
+const backend = process.env.BACKEND_URL ?? "http://localhost:8000";
+const proxy = {
+  "/api": backend,
+  "/admin": backend,
+  "/health": backend,
+  "/static": backend,
+};
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: "/static/display/",
   build: {
     outDir: "dist",
-    manifest: true,
     emptyOutDir: true,
-    rollupOptions: {
-      input: "src/main.tsx",
-    },
   },
   server: {
     host: "localhost",
     port: 5173,
-    origin: "http://localhost:5173",
-    cors: true,
-    proxy: {
-      "/api": "http://localhost:8000",
-    },
+    proxy,
+  },
+  preview: {
+    host: "localhost",
+    port: 4173,
+    proxy,
   },
   test: {
     environment: "jsdom",

@@ -1,5 +1,5 @@
 """Projectile: the game server list. `GET {base_url}/bundle` returns the announcement
-and the servers with player counts; see docs/integrations.md section 4."""
+and the servers with player counts."""
 
 from __future__ import annotations
 

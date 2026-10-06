@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Render docs/content.md from the YAML files under content/ and lint them.
+"""Lint the YAML files under content/ and render a Markdown preview of the copy.
 
 Usage:
-    python3 scripts/render_content.py            # write docs/content.md
-    python3 scripts/render_content.py --check    # fail if docs/content.md is stale
+    python3 scripts/render_content.py --check    # lint only; this is what CI and pytest run
+    python3 scripts/render_content.py            # lint, then write docs/content.md (git-ignored)
 
 The script also enforces the prose rules shared by the Ctrl-Alt-GG repos:
 every bilingual string needs both `hu` and `en`, and no file under content/
@@ -95,7 +95,7 @@ def render(event: dict, slides: dict, schedule: dict, announcements: dict) -> st
     out.append(
         "This is the text that goes on the screens, rendered in a readable form from "
         "the YAML files under `content/`. The YAML is the source of truth and is what "
-        "`manage.py loadcontent` imports. Layout names refer to `docs/design.md`, the "
+        "`manage.py loadcontent` imports. Layout names refer to `frontend/src/layouts/`, the "
         "phase names to `content/event.yaml`."
     )
     out.append("")
@@ -256,11 +256,7 @@ def main(argv: list[str]) -> int:
         return 1
     rendered = render(event, slides, schedule, announcements)
     if check:
-        current = OUTPUT.read_text(encoding="utf-8") if OUTPUT.exists() else ""
-        if current != rendered:
-            print("docs/content.md is stale; run scripts/render_content.py", file=sys.stderr)
-            return 1
-        print("docs/content.md is up to date")
+        print("content/ lints clean")
         return 0
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(rendered, encoding="utf-8")

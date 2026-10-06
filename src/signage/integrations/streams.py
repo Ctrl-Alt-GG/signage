@@ -1,5 +1,5 @@
 """Streams: the MediaMTX catalog. `GET {base_url}/streams/` lists channels with a
-status; only live ones go on the wall. See docs/integrations.md section 6."""
+status; only live ones go on the wall."""
 
 from __future__ import annotations
 

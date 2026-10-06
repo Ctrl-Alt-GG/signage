@@ -4,6 +4,8 @@ from pathlib import Path
 
 import environ
 
+from config.storage import object_storage
+
 BASE_DIR = Path(__file__).resolve().parents[3]
 
 env = environ.FileAwareEnv()
@@ -22,10 +24,8 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "whitenoise.runserver_nostatic",
     "django.contrib.staticfiles",
     "solo",
-    "django_vite",
     "rest_framework",
     "drf_spectacular",
     "drf_spectacular_sidecar",
@@ -35,7 +35,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -90,27 +89,26 @@ USE_I18N = True
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-STATIC_URL = "/static/"
+# Files. With STORAGE_ENDPOINT_URL set, static files and uploads live in an S3 bucket
+# (MinIO in the Compose stack) and browsers load them from STORAGE_PUBLIC_URL; without it
+# the local filesystem under data/ is used and runserver serves them (development).
+STORAGE = object_storage(
+    endpoint_url=env("STORAGE_ENDPOINT_URL", default=""),
+    public_url=env("STORAGE_PUBLIC_URL", default=""),
+    bucket=env("STORAGE_BUCKET", default="signage"),
+    access_key=env("STORAGE_ACCESS_KEY", default=""),
+    secret_key=env("STORAGE_SECRET_KEY", default=""),
+    region=env("STORAGE_REGION", default="us-east-1"),
+)
+STORAGES = STORAGE.storages
+STATIC_URL = STORAGE.static_url
+MEDIA_URL = STORAGE.media_url
 STATIC_ROOT = BASE_DIR / "data" / "staticfiles"
-FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
-# The Vite build lands in frontend/dist; the "display" prefix matches Vite's `base`.
-STATICFILES_DIRS = [("display", FRONTEND_DIST)] if FRONTEND_DIST.exists() else []
-STORAGES = {
-    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
-    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedStaticFilesStorage"},
-}
-MEDIA_URL = "/media/"
 MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "data" / "media")))
 
-DJANGO_VITE = {
-    "default": {
-        "dev_mode": env.bool("DJANGO_VITE_DEV_MODE", default=False),
-        "dev_server_host": env("DJANGO_VITE_DEV_SERVER_HOST", default="localhost"),
-        "dev_server_port": env.int("DJANGO_VITE_DEV_SERVER_PORT", default=5173),
-        "manifest_path": FRONTEND_DIST / ".vite" / "manifest.json",
-        "static_url_prefix": "display",
-    }
-}
+# Where the display frontend is reachable from a browser, for the links in the admin.
+# Empty means the same origin as the admin (the nginx frontend proxies /admin/).
+DISPLAY_BASE_URL = env("DISPLAY_BASE_URL", default="").rstrip("/")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],

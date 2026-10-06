@@ -1,5 +1,5 @@
 """Build the JSON bundle a screen polls: the slides in rotation, expanded into language
-passes, plus the active announcement, the phase and the clock. See docs/spec.md section 6."""
+passes, plus the active announcement, the phase and the clock."""
 
 from __future__ import annotations
 

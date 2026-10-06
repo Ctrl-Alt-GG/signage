@@ -6,7 +6,7 @@
 #   time        local wall-clock time, HH:MM
 #   day_offset  0 for the first day, 1 for after midnight. The app combines
 #               event.starts_at's date, day_offset and time into one timestamp.
-#   type        play | break | highlight. Drives the accent colour, see docs/design.md.
+#   type        play | break | highlight. Drives the accent colour, see frontend/src/layouts/.
 #   game        slug from content/games.yaml, or empty.
 #   label       game or activity name shown as a pill. Same in both languages.
 #   title, note bilingual.

@@ -9,16 +9,15 @@ dependencies = [
     "django>=6.1,<6.2",
     "django-environ>=0.14,<0.15",
     "django-solo>=2.5,<3",
-    "django-vite>=3.2,<4",
     "djangorestframework>=3.18,<3.19",
     "drf-spectacular>=0.30,<0.31",
     "drf-spectacular-sidecar>=2026.10.1",
     "django-health-check>=4.8,<5",
-    "whitenoise>=6.12,<7",
     "httpx>=0.28,<0.29",
     "pyyaml>=6.0.3,<7",
     "psycopg[binary]>=3.3,<3.4",
     "gunicorn>=26,<27",
+    "django-storages[s3]>=1.14.6,<2",
 ]
 
 [dependency-groups]
