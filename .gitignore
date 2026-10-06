@@ -218,3 +218,18 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Signage project: runtime data, dependencies and everything a build or a script generates.
+/data/
+/.venv/
+/.env
+/frontend/node_modules/
+/frontend/dist/
+/frontend/openapi.yaml
+/frontend/src/api/schema.d.ts
+*.tsbuildinfo
+/docs/
+/screenshots/
+
+# The Python template above ignores lib/; the frontend keeps its helpers there.
+!/frontend/src/lib/

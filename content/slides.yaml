@@ -1,0 +1,637 @@
+# The signage copy. This file is the source of truth for the text on the
+# screens; scripts/render_content.py lints it and renders a Markdown preview.
+#
+# `manage.py loadcontent` upserts every slide by `id`. Organizers then edit
+# in the Django admin; re-running loadcontent without `--overwrite` leaves
+# admin edits alone.
+#
+# Every slide is bilingual on one pass: Hungarian is the large, primary text
+# and English sits beneath it, smaller. Keep items short (about 40
+# characters in Hungarian) and at most four or five per slide so both
+# languages fit the box; the screenshot check fails on clipped text.
+#
+# Field reference (the model is src/signage/models.py)
+#   id              stable key, lowercase, underscores.
+#   layout          hero | list | split | qr | credentials | now_next |
+#                   schedule | servers | tournament | streams | countdown.
+#   source          static (text below) or live:<integration>. Live slides are
+#                   rendered from upstream data at bundle time; the text here
+#                   is the chrome around the data (title, empty state, footer).
+#   phases          which event phases include this slide. Keys from
+#                   content/event.yaml. "all" means every phase.
+#   duration_seconds how long the slide is shown.
+#   bilingual_mode  stacked (default): both languages on one pass.
+#                   alternate: a Hungarian pass, then an English pass.
+#   priority        higher sorts earlier inside a rotation cycle. Default 50.
+#   kicker/title/body/footer/empty   bilingual strings. body and footer may
+#                   contain a few inline Markdown marks (bold, code).
+#   items           bilingual bullet list. Optional `icon` is a Lucide icon
+#                   name, never an emoji in the text itself.
+#   columns         for the split layout: exactly two {title, items}.
+#   link            {url, label, qr}. qr: true renders a QR code for url.
+#   placeholders    strings in {braces} are replaced from the Event model at
+#                   render time: {wifi_ssid} {wifi_password} {wifi_note}
+#                   {venue_name} {venue_address} {starts_at_time}
+#                   {starts_at_date} {assembly_point} {email}.
+#
+# Prose rules: straight quotes only, no em or en dashes, no ellipsis
+# character, Hungarian in informal "te", second person, present tense. The
+# render script fails on banned glyphs.
+
+version: 2
+
+defaults:
+  duration_seconds: 15
+  bilingual_mode: stacked
+  priority: 50
+
+slides:
+  # ---------------------------------------------------------------- setup
+  - id: doors_countdown
+    layout: countdown
+    source: live:clock
+    phases: [setup]
+    duration_seconds: 20
+    priority: 90
+    kicker:
+      hu: "Hamarosan"
+      en: "Soon"
+    title:
+      hu: "Kezdés {starts_at_time}-kor"
+      en: "Starting at {starts_at_time}"
+    body:
+      hu: "Pakolj ki, dugd be a kék kábelt, frissítsd a játékaidat."
+      en: "Unpack, plug in the blue cable, update your games."
+    notes: >
+      Renders a live countdown to event.starts_at. After the target passes
+      the player shows "Elkezdődött!" / "We are live!" and the slide leaves
+      the rotation.
+
+  - id: entrance
+    layout: hero
+    source: static
+    phases: [setup, arrival]
+    duration_seconds: 12
+    priority: 80
+    kicker:
+      hu: "Bejárat"
+      en: "Entrance"
+    title:
+      hu: "Nem a főbejárat!"
+      en: "Not the main entrance"
+    body:
+      hu: "A Nagymihály utcai kétoldalú lépcsőn gyere. {venue_name}, {venue_address}"
+      en: "Use the two-sided staircase on Nagymihály utca. {venue_name}, {venue_address}"
+
+  # -------------------------------------------------------------- arrival
+  - id: welcome
+    layout: hero
+    source: static
+    phases: [arrival, play]
+    duration_seconds: 12
+    priority: 95
+    kicker:
+      hu: "GL&HF, IRL."
+      en: "GL&HF, IRL."
+    title:
+      hu: "Üdv a bulin, nerdek!"
+      en: "Welcome to the party, nerds!"
+    body:
+      hu: "Dugd be a kék kábelt, és nyisd meg a www.ctrl-alt-gg.hu oldalt. Ha betölt, fent vagy."
+      en: "Plug in the blue cable and open www.ctrl-alt-gg.hu. If it loads, you are online."
+
+  - id: start_here
+    layout: qr
+    source: static
+    phases: all
+    duration_seconds: 18
+    priority: 92
+    kicker:
+      hu: "Innen indulj"
+      en: "Start here"
+    title:
+      hu: "www.ctrl-alt-gg.hu"
+      en: "www.ctrl-alt-gg.hu"
+    items:
+      - hu: "Játékok, menetrend, szerverek"
+        en: "Games, schedule, servers"
+      - hu: "Segítség és házirend"
+        en: "Help and house rules"
+      - hu: "Linkek a többi oldalra"
+        en: "Links to every other site"
+    link:
+      url: "https://www.ctrl-alt-gg.hu"
+      label:
+        hu: "Olvasd be"
+        en: "Scan me"
+      qr: true
+
+  - id: wifi
+    layout: credentials
+    source: static
+    phases: [arrival, play, tournament, late]
+    duration_seconds: 15
+    priority: 85
+    title:
+      hu: "Wi-Fi"
+      en: "Wi-Fi"
+    body:
+      hu: "{wifi_note}"
+      en: "{wifi_note}"
+    footer:
+      hu: "Hálózat: {wifi_ssid}  Jelszó: {wifi_password}"
+      en: "Network: {wifi_ssid}  Password: {wifi_password}"
+    link:
+      url: "wifi"
+      qr: true
+    notes: >
+      The credentials layout shows the SSID and password in large monospace
+      and a WIFI: QR code so phones join with one scan. {wifi_note} resolves
+      to wifi.note in event.yaml.
+
+  - id: lobby_site
+    layout: qr
+    source: static
+    phases: [setup, arrival, play]
+    duration_seconds: 15
+    priority: 70
+    kicker:
+      hu: "Regisztráció"
+      en: "Registration"
+    title:
+      hu: "lobby.ctrl-alt-gg.hu"
+      en: "lobby.ctrl-alt-gg.hu"
+    items:
+      - hu: "Jegy és regisztráció"
+        en: "Ticket and registration"
+      - hu: "Csapat létrehozása"
+        en: "Create your team"
+      - hu: "Az állapotod egy helyen"
+        en: "Your status in one place"
+    link:
+      url: "https://lobby.ctrl-alt-gg.hu"
+      label:
+        hu: "lobby.ctrl-alt-gg.hu"
+        en: "lobby.ctrl-alt-gg.hu"
+      qr: true
+
+  - id: house_rules
+    layout: list
+    source: static
+    phases: [arrival, play]
+    duration_seconds: 18
+    priority: 70
+    title:
+      hu: "Házirend"
+      en: "House rules"
+    items:
+      - hu: "Csak fejhallgató, hangfal tilos."
+        en: "Headsets only, no speakers."
+      - hu: "Hálózathoz, kábelekhez ne nyúlj."
+        en: "Do not touch the network or the cables."
+      - hu: "Nincs csalás, nincs zavarás."
+        en: "No cheating, no disruption."
+      - hu: "Más gépéhez ne nyúlj. Legyél fair."
+        en: "Do not touch other people's rigs. Be fair."
+
+  - id: power_network
+    layout: split
+    source: static
+    phases: [arrival, play]
+    duration_seconds: 18
+    priority: 70
+    title:
+      hu: "Áram és hálózat"
+      en: "Power and network"
+    columns:
+      - title:
+          hu: "Áram"
+          en: "Power"
+        items:
+          - hu: "Fejenként két aljzat. Hozz elosztót."
+            en: "Two outlets per person. Bring a power strip."
+          - hu: "UPS szigorúan tilos."
+            en: "UPS units are forbidden."
+          - hu: "Vízforraló, hősugárzó, hűtő: tilos."
+            en: "No kettles, heaters or fridges."
+      - title:
+          hu: "Hálózat"
+          en: "Network"
+        items:
+          - hu: "Automatikus IP (DHCP), statikus nem megy."
+            en: "Automatic IP (DHCP), static does not work."
+          - hu: "DNS-t ne állíts, a 8.8.8.8 kikerüli a cache-t."
+            en: "Keep the DNS automatic, 8.8.8.8 skips the cache."
+          - hu: "Saját switch, router, AP tilos."
+            en: "No personal switches, routers or APs."
+
+  - id: help
+    layout: qr
+    source: static
+    phases: [setup, arrival, play, tournament, late, morning]
+    duration_seconds: 18
+    priority: 75
+    kicker:
+      hu: "Elakadtál?"
+      en: "Stuck?"
+    title:
+      hu: "care.ctrl-alt-gg.hu"
+      en: "care.ctrl-alt-gg.hu"
+    items:
+      - hu: "Útmutatók a gyakori gondokra"
+        en: "Guides for the common problems"
+      - hu: "Discord: #support"
+        en: "Discord: #support"
+      - hu: "Keress valakit staff pólóban"
+        en: "Find anyone in a staff shirt"
+      - hu: "Mondd el: hol ülsz, mi a gond"
+        en: "Say where you sit and what is wrong"
+    link:
+      url: "https://care.ctrl-alt-gg.hu"
+      label:
+        hu: "care.ctrl-alt-gg.hu"
+        en: "care.ctrl-alt-gg.hu"
+      qr: true
+
+  - id: voice
+    layout: list
+    source: static
+    phases: [arrival, play]
+    duration_seconds: 15
+    priority: 60
+    title:
+      hu: "Hang és chat"
+      en: "Voice and chat"
+    items:
+      - hu: "TeamSpeak 3: a cím a szerverlistán"
+        en: "TeamSpeak 3: address on the server list"
+      - hu: "Push-to-talk, a szomszédod közel ül"
+        en: "Push-to-talk, your neighbour is close"
+      - hu: "Szöveg: Discord #general, #support"
+        en: "Text: Discord #general, #support"
+      - hu: "Evés és köhögés közben némíts"
+        en: "Mute while eating or coughing"
+
+  - id: downloads
+    layout: list
+    source: static
+    phases: [arrival, play]
+    duration_seconds: 18
+    priority: 60
+    title:
+      hu: "Letöltések"
+      en: "Downloads"
+    items:
+      - hu: "Steam, Epic, Battle.net: helyi cache-ből, gyorsan"
+        en: "Steam, Epic, Battle.net: from the local cache, fast"
+      - hu: "Filehost: filehost.ctrl-alt-gg.hu (lanshare)"
+        en: "Filehost: filehost.ctrl-alt-gg.hu (lanshare)"
+      - hu: "Felhőszinkront állítsd le"
+        en: "Pause cloud sync"
+      - hu: "Torrent és warez tilos"
+        en: "No torrents, no piracy"
+
+  - id: organizers
+    layout: hero
+    source: static
+    phases: [arrival, play]
+    duration_seconds: 12
+    priority: 40
+    kicker:
+      hu: "Szervezők"
+      en: "Organizers"
+    title:
+      hu: "FiNT, Marcsello, TormaKris és Bence"
+      en: "FiNT, Marcsello, TormaKris and Bence"
+    body:
+      hu: "Kérdésed van? Keresd azt, aki meghívott, vagy írj: {email}"
+      en: "Questions? Ask whoever invited you, or write to {email}"
+
+  # ----------------------------------------------------------------- play
+  - id: now_next
+    layout: now_next
+    source: live:schedule
+    phases: [play, tournament, late, morning]
+    duration_seconds: 15
+    priority: 90
+    title:
+      hu: "Mi megy most?"
+      en: "What is on now?"
+    columns_labels:
+      now:
+        hu: "Most"
+        en: "Now"
+      next:
+        hu: "Következik"
+        en: "Next"
+      later:
+        hu: "Később"
+        en: "Later"
+    empty:
+      hu: "Nincs kiírt program. Játssz, amit szeretnél."
+      en: "Nothing scheduled right now. Play whatever you like."
+    footer:
+      hu: "A menetrend csak iránymutató."
+      en: "The schedule is only a guideline."
+
+  - id: schedule_upcoming
+    layout: schedule
+    source: live:schedule
+    phases: [play, tournament, late, morning]
+    duration_seconds: 18
+    priority: 65
+    title:
+      hu: "Menetrend"
+      en: "Schedule"
+    footer:
+      hu: "A menetrend csak iránymutató."
+      en: "The schedule is only a guideline."
+    notes: >
+      Shows the current slot and the next five. Each row is the time, the game
+      name large and the slot title small; notes are not shown. Break rows use
+      the gold accent, highlight rows the red accent.
+
+  - id: cs2_tournament
+    layout: list
+    source: static
+    phases: [arrival, play]
+    duration_seconds: 18
+    priority: 85
+    kicker:
+      hu: "Bajnokság"
+      en: "Tournament"
+    title:
+      hu: "CS2-bajnokság 20:00-tól"
+      en: "CS2 tournament from 20:00"
+    items:
+      - hu: "Nevezés: bracket.ctrl-alt-gg.hu"
+        en: "Sign up: bracket.ctrl-alt-gg.hu"
+      - hu: "Légy a gépednél 10 perccel előbb"
+        en: "Be at your PC 10 minutes early"
+      - hu: "Az admin szava döntő"
+        en: "The admin's word is final"
+      - hu: "Díjátadó 22:00-kor a gyülekezőnél"
+        en: "Awards at 22:00 at the gathering area"
+    notes: >
+      The two times mirror the highlight rows in content/schedule.yaml. When
+      the schedule changes, change both.
+
+  - id: bracket_site
+    layout: qr
+    source: static
+    phases: [arrival, play, tournament]
+    duration_seconds: 15
+    priority: 72
+    kicker:
+      hu: "Bajnokság"
+      en: "Tournament"
+    title:
+      hu: "bracket.ctrl-alt-gg.hu"
+      en: "bracket.ctrl-alt-gg.hu"
+    items:
+      - hu: "Nevezés a csapatoddal"
+        en: "Sign up with your team"
+      - hu: "Meccsek és időpontok"
+        en: "Matches and times"
+      - hu: "Eredmények és tabella"
+        en: "Results and standings"
+    link:
+      url: "https://bracket.ctrl-alt-gg.hu"
+      label:
+        hu: "bracket.ctrl-alt-gg.hu"
+        en: "bracket.ctrl-alt-gg.hu"
+      qr: true
+
+  - id: servers
+    layout: servers
+    source: live:projectile
+    phases: [play, tournament, late, morning]
+    duration_seconds: 15
+    priority: 80
+    title:
+      hu: "Szerverek"
+      en: "Game servers"
+    empty:
+      hu: "Most nincs elérhető szerveradat."
+      en: "Server data is unavailable right now."
+    footer:
+      hu: "Címek: servers.ctrl-alt-gg.hu"
+      en: "Addresses: servers.ctrl-alt-gg.hu"
+    notes: >
+      Up to eight cards: game colour header, server name, players as
+      "online / max" when Projectile reports a count, otherwise "max: N".
+
+  - id: console_corner
+    layout: hero
+    source: static
+    phases: [play, late]
+    duration_seconds: 12
+    priority: 45
+    kicker:
+      hu: "Konzol Kuckó"
+      en: "Console Corner"
+    title:
+      hu: "Xbox Series X a kanapén"
+      en: "Xbox Series X on the couch"
+    body:
+      hu: "Game Pass Ultimate, két kontroller, nagy képernyő. Bárkinek, bármikor."
+      en: "Game Pass Ultimate, two controllers, a big screen. For anyone, any time."
+
+  - id: food
+    layout: list
+    source: static
+    phases: [play, late]
+    duration_seconds: 18
+    priority: 55
+    title:
+      hu: "Kaja és pia"
+      en: "Food and drink"
+    items:
+      - hu: "Nincs büfé, mindenki magának intézi"
+        en: "No catering, sort your own meals"
+      - hu: "Közös pizzarendelés: #general"
+        en: "Group pizza order: #general"
+      - hu: "Futárral a bejáratnál találkozz"
+        en: "Meet the courier at the entrance"
+      - hu: "A gépeknél ne egyél"
+        en: "Do not eat at the rigs"
+
+  - id: streams_live
+    layout: streams
+    source: live:streams
+    phases: [play, tournament, late]
+    duration_seconds: 15
+    priority: 60
+    title:
+      hu: "Élőben most"
+      en: "Live now"
+    empty:
+      hu: "Most senki nem ad. Indíts egyet te!"
+      en: "Nobody is live. Start a stream!"
+    footer:
+      hu: "streams.ctrl-alt-gg.hu, fülhallgatóval"
+      en: "streams.ctrl-alt-gg.hu, with headphones"
+    notes: >
+      Cards for channels with status "live": thumbnail, name, audio-only
+      badge. When the upstream is stale the footer gets a small tag; the
+      slide never shows an error message to the room.
+
+  - id: streams_site
+    layout: qr
+    source: static
+    phases: [play, tournament, late]
+    duration_seconds: 15
+    priority: 42
+    kicker:
+      hu: "Streams"
+      en: "Streams"
+    title:
+      hu: "streams.ctrl-alt-gg.hu"
+      en: "streams.ctrl-alt-gg.hu"
+    items:
+      - hu: "Élő adások a teremből"
+        en: "Live broadcasts from the room"
+      - hu: "Nézd fülhallgatóval"
+        en: "Watch with headphones"
+      - hu: "Adj te is: OBS, kulcs live/neved"
+        en: "Go live too: OBS, key live/yourname"
+    link:
+      url: "https://streams.ctrl-alt-gg.hu"
+      label:
+        hu: "streams.ctrl-alt-gg.hu"
+        en: "streams.ctrl-alt-gg.hu"
+      qr: true
+
+  # ----------------------------------------------------------- tournament
+  - id: tournament_live
+    layout: tournament
+    source: live:bracket
+    phases: [tournament]
+    duration_seconds: 20
+    priority: 95
+    title:
+      hu: "CS2-bajnokság"
+      en: "CS2 tournament"
+    sections:
+      live:
+        hu: "Most játszanak"
+        en: "Playing now"
+      upcoming:
+        hu: "Következő meccsek"
+        en: "Coming up next"
+      results:
+        hu: "Eredmények"
+        en: "Results"
+    empty:
+      hu: "Most nincs futó meccs."
+      en: "No match is running right now."
+    footer:
+      hu: "Teljes bracket: bracket.ctrl-alt-gg.hu"
+      en: "Full bracket: bracket.ctrl-alt-gg.hu"
+    notes: >
+      Data comes from the Bracket public dashboard API, see
+      src/signage/integrations/bracket.py. Live matches first, then up to four
+      upcoming, then up to three finished with scores.
+
+  # ----------------------------------------------------------------- late
+  - id: survive
+    layout: list
+    source: static
+    phases: [late, morning]
+    duration_seconds: 18
+    priority: 55
+    title:
+      hu: "Éjszakai túlélés"
+      en: "Surviving the night"
+    items:
+      - hu: "Igyál vizet, nem csak energiaitalt"
+        en: "Drink water, not just energy drinks"
+      - hu: "20 percenként nézz messzire"
+        en: "Every 20 minutes, look far away"
+      - hu: "Két meccsenként nyújtózz"
+        en: "Stretch every second match"
+      - hu: "Rosszul vagy? Állj le, szólj nekünk"
+        en: "Feeling unwell? Stop and tell us"
+
+  - id: getting_home
+    layout: list
+    source: static
+    phases: [late, morning]
+    duration_seconds: 18
+    priority: 65
+    title:
+      hu: "Hazajutás"
+      en: "Getting home"
+    items:
+      - hu: "A helyszínen aludni nem lehet"
+        en: "No sleeping at the venue"
+      - hu: "Éjjel: 901, 909, 917, 918, 960 busz"
+        en: "Night buses 901, 909, 917, 918, 960"
+      - hu: "Nappal: 9, 118 busz, 17/19/41 villamos, H5"
+        en: "By day: buses 9, 118, trams 17/19/41, H5"
+      - hu: "Indulások: BudapestGO"
+        en: "Departures: BudapestGO"
+
+  # --------------------------------------------------------------- always
+  - id: safety
+    layout: list
+    source: static
+    phases: all
+    duration_seconds: 18
+    priority: 50
+    title:
+      hu: "Baj van?"
+      en: "Emergency"
+    items:
+      - hu: "Életveszély: 112, aztán kiálts: STAFF"
+        en: "Emergency: call 112, then shout STAFF"
+      - hu: "Elsősegély: szervezői asztal"
+        en: "First aid: organizer desk"
+      - hu: "Tűzjelzés: azonnal ki, a gép marad"
+        en: "Fire alarm: leave at once, the PC stays"
+      - hu: "Gyülekező: {assembly_point}"
+        en: "Assembly point: {assembly_point}"
+      - hu: "Zaklatás, rossz érzés: szólj egy szervezőnek"
+        en: "Harassment or feeling unsafe: tell an organizer"
+
+  - id: social
+    layout: qr
+    source: static
+    phases: [play, late, morning, teardown]
+    duration_seconds: 15
+    priority: 35
+    title:
+      hu: "Kövess minket"
+      en: "Follow us"
+    items:
+      - hu: "YouTube: @Ctrl-Alt-GG"
+        en: "YouTube: @Ctrl-Alt-GG"
+      - hu: "Twitch: ctrl_alt_gg"
+        en: "Twitch: ctrl_alt_gg"
+      - hu: "Steam csoport: Ctrl-Alt-GG"
+        en: "Steam group: Ctrl-Alt-GG"
+      - hu: "Képek: www.ctrl-alt-gg.hu/recap"
+        en: "Photos: www.ctrl-alt-gg.hu/recap"
+    link:
+      url: "https://discord.gg/TVJ5Xh2NC3"
+      label:
+        hu: "Discord"
+        en: "Discord"
+      qr: true
+
+  # ------------------------------------------------------------- teardown
+  - id: teardown
+    layout: hero
+    source: static
+    phases: [teardown]
+    duration_seconds: 20
+    priority: 99
+    kicker:
+      hu: "Köszönjük!"
+      en: "Thank you!"
+    title:
+      hu: "GG, viszlát legközelebb"
+      en: "GG, see you next time"
+    body:
+      hu: "Pakolj össze, a szemetet a kukába, a kék kábel marad. Képek: www.ctrl-alt-gg.hu/recap"
+      en: "Pack up, trash in the bins, the blue cable stays. Photos: www.ctrl-alt-gg.hu/recap"

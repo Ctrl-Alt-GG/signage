@@ -1,0 +1,23 @@
+{% extends "admin/change_form.html" %}
+{% load i18n %}
+{% block object-tools-items %}
+  <li><a href="{{ import_yaml_url }}" class="addlink">{% translate "Import event.yaml" %}</a></li>
+  <li><a href="{% url 'admin:signage_overview' %}" class="viewsitelink">{% translate "Overview" %}</a></li>
+  {{ block.super }}
+{% endblock %}
+{% block after_field_sets %}
+  <fieldset class="module aligned">
+    <h2>{% translate "Set the phase now" %}</h2>
+    <div class="form-row" style="display:flex;gap:.5rem;flex-wrap:wrap">
+      {% comment %}The buttons sit inside the admin's own form, so they redirect its
+      submission to the phase view instead of nesting a second form.{% endcomment %}
+      {% for phase in phases %}
+      <button type="submit" class="button" formmethod="post" formnovalidate
+              formaction="{% url 'admin:signage_event_set_phase' phase.key %}">
+        {{ phase.key }}: {{ phase.name_hu }} / {{ phase.name_en }}
+      </button>
+      {% endfor %}
+    </div>
+    <p class="help">{% translate "Each button switches to manual mode with that phase. Pick auto mode above to follow the clock again." %}</p>
+  </fieldset>
+{% endblock %}

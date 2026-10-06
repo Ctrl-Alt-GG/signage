@@ -1,0 +1,178 @@
+# Event facts for the signage. Loaded by `manage.py loadcontent` into the Event
+# model, then editable in the Django admin. The admin copy wins after the first
+# load; re-running loadcontent only fills fields that are still empty unless
+# `--overwrite` is passed.
+#
+# Values below were read from the sibling repositories on 2026-10-06
+# (homepage, care, link-collection, network-services). Anything marked
+# CHANGE-ME was not published anywhere and must be set by an organizer.
+
+event:
+  name: "Ctrl-Alt-GG"
+  tagline: "GL&HF, IRL."
+  # The homepage countdown pointed at this date when the content was read.
+  # Confirm before the next event; the schedule below starts at 15:30.
+  starts_at: "2026-10-03T15:30:00+02:00"
+  # The published schedule ends at 06:00 the next morning. Teardown end is a
+  # guess; set the real closing time in the admin.
+  ends_at: "2026-10-04T08:00:00+02:00"
+  timezone: "Europe/Budapest"
+  languages: ["hu", "en"]
+  default_language: "hu"
+
+venue:
+  name: "DISTR3CT Event Cube"
+  address: "1037 Budapest, Nagymihály utca 2."
+  district: "Budapest III. (Óbuda)"
+  lat: 47.5513926
+  lng: 19.0354529
+  entrance_note:
+    hu: "Az esemény bejárata nem az épület főbejárata, hanem a Nagymihály utcai kétoldalú lépcső."
+    en: "The event entrance is not the building's main entrance. Use the two-sided staircase on Nagymihály utca."
+  parking:
+    hu: "Az épület felőli oldalon mindig ingyenes. A túloldalon hétvégén ingyenes, hétköznap fizetős."
+    en: "Always free on the building side. Free on weekends across the street, metered on weekdays."
+  assembly_point:
+    # Not published anywhere. Fill in before the event.
+    hu: "CHANGE-ME"
+    en: "CHANGE-ME"
+  transit:
+    - mode: bus
+      stop: "Búza utca"
+      distance_m: 320
+      lines: ["118"]
+      night_lines: ["918"]
+    - mode: bus
+      stop: "Óbuda, Bogdáni út"
+      distance_m: 900
+      lines: ["9"]
+      night_lines: ["909", "918"]
+    - mode: tram
+      stop: "Bécsi út / Vörösvári út"
+      distance_m: 530
+      lines: ["17", "19", "41"]
+      night_lines: []
+    - mode: night_bus
+      stop: "Bécsi út / Vörösvári út"
+      distance_m: 530
+      lines: []
+      night_lines: ["901", "917", "960"]
+    - mode: hev
+      stop: "Filatorigát"
+      distance_m: 810
+      lines: ["H5"]
+      night_lines: []
+    - mode: hev
+      stop: "Kaszásdűlő"
+      distance_m: 950
+      lines: ["H5"]
+      night_lines: []
+
+wifi:
+  # The SSID is not published. The password below is the one Spawn shows.
+  ssid: "CHANGE-ME"
+  password: "foldalattholdfelett"
+  security: "WPA"
+  note:
+    hu: "Játszani kábelen érdemes. A Wi-Fi a telefonodnak van."
+    en: "Play on the cable. The Wi-Fi is for your phone."
+
+links:
+  # On the venue network the start page is the homepage itself.
+  start: "https://www.ctrl-alt-gg.hu"
+  homepage: "https://www.ctrl-alt-gg.hu"
+  recap: "https://www.ctrl-alt-gg.hu/recap/"
+  schedule: "https://www.ctrl-alt-gg.hu/schedule/"
+  care: "https://care.ctrl-alt-gg.hu"
+  spawn: "https://spawn.ctrl-alt-gg.hu"
+  lobby: "https://lobby.ctrl-alt-gg.hu"
+  bracket: "https://bracket.ctrl-alt-gg.hu"
+  streams: "https://streams.ctrl-alt-gg.hu"
+  filehost: "https://filehost.ctrl-alt-gg.hu"
+  servers: "https://servers.ctrl-alt-gg.hu"
+  discord: "https://discord.gg/TVJ5Xh2NC3"
+  steam: "https://steamcommunity.com/groups/Ctrl-Alt-GG"
+  youtube: "https://www.youtube.com/@Ctrl-Alt-GG"
+  twitch: "https://www.twitch.tv/ctrl_alt_gg"
+  email: "szervezok@ctrl-alt-gg.hu"
+
+filehost:
+  username: "lanshare"
+  password: "lanshare"
+  smb: '\\filehost.ctrl-alt-gg.hu'
+
+discord_channels:
+  - name: "#announcements"
+    hu: "hivatalos közlemények"
+    en: "official announcements"
+  - name: "#general"
+    hu: "általános, játékkeresés, közös rendelés"
+    en: "general chat, finding players, group orders"
+  - name: "#support"
+    hu: "segítségkérés"
+    en: "asking for help"
+  - name: "#highlights"
+    hu: "képek és játékpillanatok"
+    en: "pictures and gaming highlights"
+  - name: "#minecraft-chat"
+    hu: "a Minecraft szerver chatje"
+    en: "the Minecraft server chat"
+
+organizers:
+  - "FiNT"
+  - "Marcsello"
+  - "TormaKris"
+  - "Bence"
+
+social:
+  youtube:
+    handle: "@Ctrl-Alt-GG"
+    hu: "felvételek és összefoglalók"
+    en: "VODs and recaps"
+  twitch:
+    handle: "ctrl_alt_gg"
+    hu: "élő adás a rendezvényről"
+    en: "live from the event"
+  steam:
+    handle: "Ctrl-Alt-GG"
+    hu: "Steam csoport"
+    en: "Steam group"
+  discord:
+    handle: "discord.gg/TVJ5Xh2NC3"
+    hu: "közösség"
+    en: "community"
+
+# Phases drive which slides are in rotation. The organizer sets the current
+# phase in the admin; `auto` picks it from the clock using the boundaries
+# below (local time, relative to starts_at's date).
+phases:
+  - key: setup
+    hu: "Berendezkedés"
+    en: "Setup"
+    starts: "12:00"
+  - key: arrival
+    hu: "Érkezés"
+    en: "Arrival"
+    starts: "14:30"
+  - key: play
+    hu: "Játék"
+    en: "Play"
+    starts: "15:30"
+  - key: tournament
+    hu: "Bajnokság"
+    en: "Tournament"
+    starts: "19:45"
+  - key: late
+    hu: "Éjszaka"
+    en: "Late night"
+    starts: "22:30"
+  - key: morning
+    hu: "Reggel"
+    en: "Morning"
+    starts: "05:30"
+    day_offset: 1
+  - key: teardown
+    hu: "Pakolás"
+    en: "Teardown"
+    starts: "07:00"
+    day_offset: 1

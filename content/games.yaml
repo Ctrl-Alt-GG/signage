@@ -1,0 +1,177 @@
+# Game dictionary. Slugs match data/games.yaml in Ctrl-Alt-GG/homepage so the
+# same slug works in the schedule and on the homepage.
+#
+#   projectile_keys  the `game` values the Projectile server list uses for this
+#                    game (from src/data/icons.js in projectile-frontend). The
+#                    servers slide maps Projectile entries to a game through
+#                    these keys; unknown keys fall back to a neutral card.
+#   color            header colour pair from projectile-frontend's colors.js so
+#                    server cards look the same on the wall and on the signage.
+#   hosted           true when the homepage marks the game with the server icon
+#                    (an organizer-hosted server is guaranteed).
+
+games:
+  - slug: cs2
+    name: "Counter-Strike 2"
+    short: "CS2"
+    hosted: true
+    tournament: true
+    projectile_keys: ["cs2", "csgo"]
+    color: { bg: "#c9a227", text: "#000000" }
+  - slug: css
+    name: "Counter-Strike: Source"
+    short: "CS:S"
+    hosted: true
+    projectile_keys: ["css", "csstrike"]
+    color: { bg: "#8a8add", text: "#000000" }
+  - slug: minecraft
+    name: "Minecraft"
+    short: "Minecraft"
+    hosted: true
+    projectile_keys: ["mc", "minecraft"]
+    color: { bg: "#3a7d3a", text: "#ffffff" }
+  - slug: satisfactory
+    name: "Satisfactory"
+    short: "Satisfactory"
+    hosted: true
+    projectile_keys: ["satisfactory", "factorygame"]
+    color: { bg: "#475256", text: "#ffffff" }
+  - slug: garrys-mod
+    name: "Garry's Mod"
+    short: "GMod"
+    hosted: true
+    projectile_keys: ["garrysmod", "gmod"]
+    color: { bg: "#265888", text: "#ffffff" }
+  - slug: xonotic
+    name: "Xonotic"
+    short: "Xonotic"
+    hosted: true
+    projectile_keys: ["xonotic"]
+    color: { bg: "#001021", text: "#ffffff" }
+  - slug: scp
+    name: "SCP: Secret Laboratory"
+    short: "SCP:SL"
+    hosted: true
+    projectile_keys: ["scpsl"]
+    color: { bg: "#000000", text: "#ffffff" }
+  - slug: openarena
+    name: "OpenArena"
+    short: "OpenArena"
+    hosted: true
+    projectile_keys: ["openarena"]
+    color: { bg: "#161a23", text: "#ffffff" }
+  - slug: openttd
+    name: "OpenTTD"
+    short: "OpenTTD"
+    hosted: true
+    projectile_keys: ["openttd"]
+    color: { bg: "#f39940", text: "#000000" }
+  - slug: supertuxkart
+    name: "SuperTuxKart"
+    short: "STK"
+    hosted: true
+    projectile_keys: ["supertuxkart"]
+    color: { bg: "#af0c0c", text: "#ffffff" }
+  - slug: tf2
+    name: "Team Fortress 2"
+    short: "TF2"
+    hosted: false
+    projectile_keys: ["tf2"]
+    color: { bg: "#8a3613", text: "#ffffff" }
+  - slug: dod-source
+    name: "Day of Defeat: Source"
+    short: "DoD:S"
+    hosted: true
+    projectile_keys: ["dods"]
+    color: { bg: "#5e5f3f", text: "#000000" }
+  - slug: factorio
+    name: "Factorio"
+    short: "Factorio"
+    hosted: true
+    projectile_keys: ["factorio"]
+    color: { bg: "#adadad", text: "#000000" }
+  - slug: left4dead2
+    name: "Left 4 Dead 2"
+    short: "L4D2"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: lol
+    name: "League of Legends"
+    short: "LoL"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: alien-swarm
+    name: "Alien Swarm"
+    short: "Alien Swarm"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: trackmania
+    name: "TrackMania Nations Forever"
+    short: "TrackMania"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: wz2100
+    name: "Warzone 2100"
+    short: "WZ2100"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: beyond-all-reason
+    name: "Beyond All Reason"
+    short: "BAR"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: dont-starve-together
+    name: "Don't Starve Together"
+    short: "DST"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: tempest-rising
+    name: "Tempest Rising"
+    short: "Tempest Rising"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: vermintide2
+    name: "Warhammer: Vermintide 2"
+    short: "Vermintide 2"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: swat4
+    name: "SWAT 4"
+    short: "SWAT 4"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  - slug: cod-mw2
+    name: "Call of Duty: Modern Warfare 2"
+    short: "CoD MW2"
+    hosted: false
+    projectile_keys: []
+    color: { bg: "#777777", text: "#000000" }
+  # Projectile-only entries (no homepage card). Kept so server cards get a colour.
+  - slug: svencoop
+    name: "Sven Co-op"
+    short: "Sven Co-op"
+    hosted: false
+    projectile_keys: ["svencoop"]
+    color: { bg: "#5f6d8d", text: "#000000" }
+  - slug: quake3
+    name: "Quake III Arena"
+    short: "Q3A"
+    hosted: false
+    projectile_keys: ["quake3"]
+    color: { bg: "#777777", text: "#000000" }
+  - slug: teamspeak
+    name: "TeamSpeak 3"
+    short: "TS3"
+    hosted: true
+    projectile_keys: ["teamspeak", "ts3"]
+    color: { bg: "#1d2b56", text: "#ffffff" }

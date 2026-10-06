@@ -1,0 +1,52 @@
+[project]
+name = "signage"
+version = "0.1.0"
+description = "Digital signage for the Ctrl-Alt-GG LAN party"
+readme = "README.md"
+requires-python = ">=3.13,<3.15"
+license = "GPL-3.0-only"
+dependencies = [
+    "django>=6.1,<6.2",
+    "django-environ>=0.14,<0.15",
+    "django-solo>=2.5,<3",
+    "djangorestframework>=3.18,<3.19",
+    "drf-spectacular>=0.30,<0.31",
+    "drf-spectacular-sidecar>=2026.10.1",
+    "django-health-check>=4.8,<5",
+    "httpx>=0.28,<0.29",
+    "pyyaml>=6.0.3,<7",
+    "psycopg[binary]>=3.3,<3.4",
+    "gunicorn>=26,<27",
+    "django-storages[s3]>=1.14.6,<2",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16,<0.17",
+    "pytest>=9,<10",
+    "pytest-django>=4.14,<5",
+    "respx>=0.23,<0.24",
+    "playwright>=1.50",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "DJ", "RUF"]
+ignore = ["DJ001"]
+
+[tool.ruff.lint.per-file-ignores]
+"src/*/migrations/*.py" = ["E501", "RUF012"]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.development"
+pythonpath = ["src", "."]
+testpaths = ["src/signage/tests"]
+addopts = "-q"
+filterwarnings = ["error::DeprecationWarning:signage", "default"]

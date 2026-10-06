@@ -1,0 +1,90 @@
+# Announcement templates. Organizers pick one in the admin, fill the
+# placeholders, set the level and the time window. Nothing here is shown
+# until an organizer activates it.
+#
+#   level     info | warning | urgent
+#   takeover  when true the announcement replaces the rotation while active
+#             (use for match calls and safety). When false it renders as a bar
+#             pinned to the bottom of the content-safe area and the rotation
+#             continues above it.
+#   Placeholders use {curly_braces}. The admin form lists them.
+
+templates:
+  - key: match_call
+    level: urgent
+    takeover: true
+    text:
+      hu: "CS2: {team_a} vs {team_b} {minutes} perc múlva kezdődik. Gyertek a gépetekhez!"
+      en: "CS2: {team_a} vs {team_b} starts in {minutes} minutes. Get to your PCs!"
+  - key: match_live
+    level: info
+    takeover: false
+    text:
+      hu: "CS2 most: {team_a} vs {team_b}. Nézd a kivetítőn vagy a streams.ctrl-alt-gg.hu oldalon."
+      en: "CS2 now: {team_a} vs {team_b}. Watch on the projector or at streams.ctrl-alt-gg.hu."
+  - key: next_game
+    level: info
+    takeover: false
+    text:
+      hu: "Következik: {game} {time}-kor. A szervert a servers.ctrl-alt-gg.hu oldalon találod."
+      en: "Next up: {game} at {time}. Find the server at servers.ctrl-alt-gg.hu."
+  - key: break
+    level: info
+    takeover: false
+    text:
+      hu: "Szünet {until}-ig. Egyél, igyál, nyújtózz."
+      en: "Break until {until}. Eat, drink, stretch."
+  - key: pizza
+    level: info
+    takeover: false
+    text:
+      hu: "Közös pizzarendelés {deadline}-ig a #general csatornán."
+      en: "Group pizza order closes at {deadline} in #general."
+  - key: awards
+    level: warning
+    takeover: true
+    text:
+      hu: "CS2-díjátadó {time}-kor a közös gyülekezőnél. Kb. 15 perc."
+      en: "CS2 awards at {time} at the gathering area. About 15 minutes."
+  - key: power
+    level: warning
+    takeover: false
+    text:
+      hu: "Áramgond a(z) {area} környékén. Húzd ki, ami nem kell. Dolgozunk rajta."
+      en: "Power issue near {area}. Unplug what you do not need. We are on it."
+  - key: network
+    level: warning
+    takeover: false
+    text:
+      hu: "Hálózati karbantartás {from}-{to}. Rövid kiesés várható."
+      en: "Network maintenance {from}-{to}. Expect a short outage."
+  - key: known_issue
+    level: warning
+    takeover: false
+    text:
+      hu: "Ismert hiba: {issue}. Megoldás: {workaround}."
+      en: "Known issue: {issue}. Workaround: {workaround}."
+  - key: lost_found
+    level: info
+    takeover: false
+    text:
+      hu: "Talált tárgy a szervezői asztalnál: {item}."
+      en: "Found at the organizer desk: {item}."
+  - key: quiet
+    level: info
+    takeover: false
+    text:
+      hu: "Halkabban: éjfél után vedd vissza a hangerőt és a kiabálást."
+      en: "Keep it down: lower the volume and the shouting after midnight."
+  - key: last_call
+    level: warning
+    takeover: false
+    text:
+      hu: "Utolsó kör: {time}-kor zárunk. Kezdj el pakolni."
+      en: "Last call: we close at {time}. Start packing."
+  - key: evacuate
+    level: urgent
+    takeover: true
+    text:
+      hu: "Hagyd el az épületet a legközelebbi kijáraton. A géped marad. Gyülekező: {assembly_point}."
+      en: "Leave the building through the nearest exit. Leave your PC. Assembly point: {assembly_point}."

@@ -1,0 +1,19 @@
+# Keep build contexts to the sources each Dockerfile copies.
+.git
+.github
+.venv
+.env
+.env.*
+!.env.example
+.pytest_cache
+.ruff_cache
+__pycache__
+*.py[cod]
+data
+docs
+screenshots
+frontend/node_modules
+frontend/dist
+frontend/openapi.yaml
+frontend/src/api/schema.d.ts
+*.tsbuildinfo
