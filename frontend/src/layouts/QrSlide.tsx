@@ -1,7 +1,7 @@
 import { QRCodeSVG } from "qrcode.react";
 
 import type { Pass } from "../api/client";
-import { pick, primaryLang } from "../lib/i18n";
+import { joined } from "../lib/i18n";
 import { Footer, Items, Kicker, Title } from "./common";
 
 export function QrPanel({ value, label }: { value: string; label: string }) {
@@ -17,7 +17,6 @@ export function QrPanel({ value, label }: { value: string; label: string }) {
 
 export function QrSlide({ pass }: { pass: Pass }) {
   const link = pass.content.link;
-  const lang = primaryLang(pass.lang);
   return (
     <div className="flex h-full gap-12">
       <div className="flex min-w-0 flex-1 flex-col gap-6 pt-6">
@@ -28,7 +27,7 @@ export function QrSlide({ pass }: { pass: Pass }) {
         </div>
         <Footer pass={pass} />
       </div>
-      {link?.qr_payload ? <QrPanel value={link.qr_payload} label={pick(link.label, lang) || link.url} /> : null}
+      {link?.qr_payload ? <QrPanel value={link.qr_payload} label={joined(link.label, pass.lang) || link.url} /> : null}
     </div>
   );
 }

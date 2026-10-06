@@ -63,7 +63,11 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   the admin by hand.
 - Organizers manage everything in the Django admin. Slides, schedule,
   games and event facts load from `content/*.yaml` (`loadcontent` or the
-  admin import). The background SVG is exchangeable in the admin.
+  admin import). Rows are matched by a stable key (slide id, schedule
+  `key`, game slug, phase key, template key); a row saved in the admin
+  carries `origin=admin` and later imports skip it unless overwrite is
+  requested, so a redeploy never undoes an organizer's edit. The
+  background SVG is exchangeable in the admin.
 - Files: with `STORAGE_ENDPOINT_URL` set, django-storages keeps static
   files and uploads in the S3 bucket and `manage.py ensurestorage` creates
   the bucket with an anonymous-read policy; without it the filesystem

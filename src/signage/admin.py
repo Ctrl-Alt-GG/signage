@@ -10,6 +10,7 @@ import yaml
 from django import forms
 from django.contrib import admin, messages
 from django.contrib.admin.views.decorators import staff_member_required
+from django.core.exceptions import ValidationError
 from django.shortcuts import redirect, render
 from django.template.response import TemplateResponse
 from django.urls import path, reverse
@@ -31,6 +32,7 @@ from signage.models import (
     Event,
     Game,
     Integration,
+    Origin,
     Phase,
     ScheduleEntry,
     Screen,
@@ -61,11 +63,21 @@ class YamlImportForm(forms.Form):
     )
 
 
+class AdminOwnedMixin:
+    """Rows saved here carry the admin origin, so a later YAML import leaves them alone."""
+
+    def save_model(self, request, obj, form, change):
+        obj.origin = Origin.ADMIN
+        super().save_model(request, obj, form, change)
+
+
 class YamlImportMixin:
     """Adds an "Import from YAML" button and view to a model admin. Subclasses set
-    `yaml_loader` to a function taking the parsed document and returning a Report."""
+    `yaml_loader` to a function taking the parsed document and returning a Report, and
+    `yaml_linter` to the content lint for that file, which runs before anything is saved."""
 
     yaml_loader = None
+    yaml_linter = None
     yaml_name = ""
     change_list_template = "admin/signage/change_list_with_import.html"
 
@@ -91,13 +103,25 @@ class YamlImportMixin:
     def import_yaml_view(self, request):
         form = YamlImportForm(request.POST or None, request.FILES or None)
         if request.method == "POST" and form.is_valid():
-            text = form.cleaned_data["file"].read().decode("utf-8")
+            upload = form.cleaned_data["file"]
             try:
-                lint.lint_text(text, form.cleaned_data["file"].name)
+                text = upload.read().decode("utf-8")
+                lint.lint_text(text, upload.name)
                 data = yaml.safe_load(text) or {}
+                if not isinstance(data, dict):
+                    raise lint.LintError(_("the top level must be a mapping"))
+                self.lint_yaml(data)
                 report = self.run_yaml_loader(data, overwrite=form.cleaned_data["overwrite"])
-            except (lint.LintError, yaml.YAMLError, KeyError, TypeError) as error:
-                messages.error(request, _("Import failed: %(error)s") % {"error": error})
+            except (
+                lint.LintError,
+                yaml.YAMLError,
+                ValidationError,
+                UnicodeDecodeError,
+                KeyError,
+                TypeError,
+                ValueError,
+            ) as error:
+                form.add_error("file", _("Import failed: %(error)s") % {"error": error})
             else:
                 messages.success(request, report.summary())
                 for item in report.skipped:
@@ -115,21 +139,34 @@ class YamlImportMixin:
     def run_yaml_loader(self, data, *, overwrite):
         return type(self).yaml_loader(data, overwrite=overwrite)
 
+    def lint_yaml(self, data):
+        linter = type(self).yaml_linter
+        if linter is not None:
+            linter(data)
+
 
 def _slides_loader(data, *, overwrite):
     return content_loader.load_slides(data, overwrite=overwrite)
 
 
+def _slides_linter(data):
+    lint.lint_slides(data, Phase.objects.values_list("key", flat=True))
+
+
 def _schedule_loader(data, *, overwrite):
-    return content_loader.load_schedule(data)
+    return content_loader.load_schedule(data, overwrite=overwrite)
+
+
+def _schedule_linter(data):
+    lint.lint_schedule(data, Game.objects.values_list("slug", flat=True))
 
 
 def _games_loader(data, *, overwrite):
-    return content_loader.load_games(data)
+    return content_loader.load_games(data, overwrite=overwrite)
 
 
 def _announcements_loader(data, *, overwrite):
-    return content_loader.load_announcements(data)
+    return content_loader.load_announcements(data, overwrite=overwrite)
 
 
 def _event_loader(data, *, overwrite):
@@ -139,6 +176,7 @@ def _event_loader(data, *, overwrite):
 @admin.register(Event)
 class EventAdmin(YamlImportMixin, SingletonModelAdmin):
     yaml_loader = staticmethod(_event_loader)
+    yaml_linter = staticmethod(lint.lint_event)
     yaml_name = "event.yaml"
     change_list_template = None
     fieldsets = (
@@ -251,17 +289,20 @@ class DisplaySettingsAdmin(SingletonModelAdmin):
 
 
 @admin.register(Phase)
-class PhaseAdmin(admin.ModelAdmin):
-    list_display = ("key", "name_hu", "name_en", "starts", "day_offset", "order")
+class PhaseAdmin(AdminOwnedMixin, admin.ModelAdmin):
+    list_display = ("key", "name_hu", "name_en", "starts", "day_offset", "order", "origin")
     list_editable = ("starts", "day_offset", "order")
+    readonly_fields = ("origin",)
     ordering = ("order",)
 
 
 @admin.register(Game)
-class GameAdmin(YamlImportMixin, admin.ModelAdmin):
+class GameAdmin(AdminOwnedMixin, YamlImportMixin, admin.ModelAdmin):
     yaml_loader = staticmethod(_games_loader)
+    yaml_linter = staticmethod(lint.lint_games)
     yaml_name = "games.yaml"
-    list_display = ("name", "slug", "short", "hosted", "tournament", "swatch")
+    list_display = ("name", "slug", "short", "hosted", "tournament", "swatch", "origin")
+    readonly_fields = ("origin",)
     list_editable = ("hosted", "tournament")
     search_fields = ("name", "slug", "short")
     list_filter = ("hosted", "tournament")
@@ -278,16 +319,30 @@ class GameAdmin(YamlImportMixin, admin.ModelAdmin):
 
 
 @admin.register(ScheduleEntry)
-class ScheduleEntryAdmin(YamlImportMixin, admin.ModelAdmin):
+class ScheduleEntryAdmin(AdminOwnedMixin, YamlImportMixin, admin.ModelAdmin):
     yaml_loader = staticmethod(_schedule_loader)
+    yaml_linter = staticmethod(_schedule_linter)
     yaml_name = "schedule.yaml"
-    list_display = ("local_start", "type", "label", "title_hu", "title_en", "game")
+    list_display = ("local_start", "type", "label", "title_hu", "title_en", "game", "origin")
     list_editable = ("type",)
     list_filter = ("type", "day_offset", "game")
-    search_fields = ("title_hu", "title_en", "label")
+    search_fields = ("key", "title_hu", "title_en", "label")
     ordering = ("day_offset", "time", "order")
+    readonly_fields = ("origin",)
     fieldsets = (
-        (None, {"fields": (("time", "day_offset"), "type", ("game", "label"), "order")}),
+        (
+            None,
+            {
+                "fields": (
+                    ("time", "day_offset"),
+                    "type",
+                    ("game", "label"),
+                    "order",
+                    "key",
+                    "origin",
+                )
+            },
+        ),
         (_("Text"), {"fields": (("title_hu", "title_en"), ("note_hu", "note_en"))}),
     )
 
@@ -314,6 +369,7 @@ class ScreenSlideInline(admin.TabularInline):
 @admin.register(Slide)
 class SlideAdmin(YamlImportMixin, admin.ModelAdmin):
     yaml_loader = staticmethod(_slides_loader)
+    yaml_linter = staticmethod(_slides_linter)
     yaml_name = "slides.yaml"
     list_display = (
         "key",
@@ -408,7 +464,7 @@ class SlideAdmin(YamlImportMixin, admin.ModelAdmin):
         queryset.update(enabled=False)
 
     def save_model(self, request, obj, form, change):
-        obj.origin = Slide.Origin.ADMIN
+        obj.origin = Origin.ADMIN
         super().save_model(request, obj, form, change)
 
 
@@ -426,10 +482,12 @@ class ScreenAdmin(admin.ModelAdmin):
 
 
 @admin.register(AnnouncementTemplate)
-class AnnouncementTemplateAdmin(YamlImportMixin, admin.ModelAdmin):
+class AnnouncementTemplateAdmin(AdminOwnedMixin, YamlImportMixin, admin.ModelAdmin):
     yaml_loader = staticmethod(_announcements_loader)
+    yaml_linter = staticmethod(lint.lint_announcements)
     yaml_name = "announcements.yaml"
-    list_display = ("key", "level", "takeover", "text_hu", "placeholder_list")
+    list_display = ("key", "level", "takeover", "text_hu", "placeholder_list", "origin")
+    readonly_fields = ("origin",)
     list_filter = ("level", "takeover")
 
     @admin.display(description=_("Placeholders"))

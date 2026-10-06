@@ -1,6 +1,6 @@
 """Import content/*.yaml into the database. Idempotent: existing rows are matched by
-their natural key and only updated when they still carry the seed origin or when
-`overwrite` is requested."""
+their key (slide id, schedule key, game slug, phase key, template key) and only updated
+while they still carry the seed origin, or when `overwrite` is requested."""
 
 from __future__ import annotations
 
@@ -19,6 +19,7 @@ from signage.models import (
     AnnouncementTemplate,
     Event,
     Game,
+    Origin,
     Phase,
     ScheduleEntry,
     Slide,
@@ -94,6 +95,26 @@ def _bilingual(data: dict, key: str) -> dict[str, str]:
     return {lang: value.get(lang, "") for lang in LANGS}
 
 
+def _seed_row(model, report: Report, label: str, lookup: dict, values: dict, *, overwrite: bool):
+    """Create or update one seeded row. A row saved in the admin keeps its values unless
+    `overwrite` is requested; a row the seed touches goes back to the seed origin."""
+    existing = model.objects.filter(**lookup).first()
+    if existing and existing.origin == Origin.ADMIN and not overwrite:
+        report.skipped.append(label)
+        return existing
+    if existing:
+        for attr, value in values.items():
+            setattr(existing, attr, value)
+        existing.origin = Origin.SEED
+        existing.save()
+        report.updated += 1
+        return existing
+    row = model(**lookup, **values, origin=Origin.SEED)
+    row.save()
+    report.created += 1
+    return row
+
+
 @transaction.atomic
 def load_event(data: dict, *, overwrite: bool = False) -> Report:
     report = Report()
@@ -129,18 +150,20 @@ def load_event(data: dict, *, overwrite: bool = False) -> Report:
         report.skipped.append("event (use --overwrite to replace the admin values)")
 
     for order, phase in enumerate(data["phases"]):
-        _, created = Phase.objects.update_or_create(
-            key=phase["key"],
-            defaults={
+        _seed_row(
+            Phase,
+            report,
+            f"phase {phase['key']}",
+            {"key": phase["key"]},
+            {
                 "name_hu": phase["hu"],
                 "name_en": phase["en"],
                 "starts": _parse_time(phase["starts"]),
                 "day_offset": int(phase.get("day_offset", 0)),
                 "order": order,
             },
+            overwrite=overwrite,
         )
-        report.created += int(created)
-        report.updated += int(not created)
     if event.current_phase is None:
         event.current_phase = Phase.objects.order_by("order").first()
         event.save(update_fields=["current_phase"])
@@ -148,13 +171,16 @@ def load_event(data: dict, *, overwrite: bool = False) -> Report:
 
 
 @transaction.atomic
-def load_games(data: dict) -> Report:
+def load_games(data: dict, *, overwrite: bool = False) -> Report:
     report = Report()
     for game in data["games"]:
         color = game.get("color") or {}
-        _, created = Game.objects.update_or_create(
-            slug=game["slug"],
-            defaults={
+        _seed_row(
+            Game,
+            report,
+            f"game {game['slug']}",
+            {"slug": game["slug"]},
+            {
                 "name": game["name"],
                 "short": game.get("short") or game["name"],
                 "hosted": bool(game.get("hosted", False)),
@@ -163,35 +189,37 @@ def load_games(data: dict) -> Report:
                 "color_bg": color.get("bg", "#777777"),
                 "color_text": color.get("text", "#000000"),
             },
+            overwrite=overwrite,
         )
-        report.created += int(created)
-        report.updated += int(not created)
     return report
 
 
 @transaction.atomic
-def load_schedule(data: dict) -> Report:
+def load_schedule(data: dict, *, overwrite: bool = False) -> Report:
     report = Report()
     games = {g.slug: g for g in Game.objects.all()}
     for order, entry in enumerate(data["entries"]):
         title = _bilingual(entry, "title")
         note = _bilingual(entry, "note")
-        _, created = ScheduleEntry.objects.update_or_create(
-            time=_parse_time(entry["time"]),
-            day_offset=int(entry.get("day_offset", 0)),
-            title_hu=title["hu"],
-            defaults={
+        _seed_row(
+            ScheduleEntry,
+            report,
+            f"schedule {entry['key']}",
+            {"key": entry["key"]},
+            {
+                "time": _parse_time(entry["time"]),
+                "day_offset": int(entry.get("day_offset", 0)),
                 "type": entry["type"],
                 "game": games.get(entry.get("game") or ""),
                 "label": entry.get("label") or "",
+                "title_hu": title["hu"],
                 "title_en": title["en"],
                 "note_hu": note["hu"],
                 "note_en": note["en"],
                 "order": order,
             },
+            overwrite=overwrite,
         )
-        report.created += int(created)
-        report.updated += int(not created)
     return report
 
 
@@ -261,11 +289,11 @@ def load_slides(data: dict, *, overwrite: bool = False) -> Report:
     for order, slide_data in enumerate(data["slides"]):
         key = slide_data["id"]
         existing = Slide.objects.filter(pk=key).first()
-        if existing and existing.origin == Slide.Origin.ADMIN and not overwrite:
+        if existing and existing.origin == Origin.ADMIN and not overwrite:
             report.skipped.append(f"slide {key}")
             continue
         values = _slide_defaults(slide_data, defaults, order)
-        values["origin"] = Slide.Origin.SEED
+        values["origin"] = Origin.SEED
         if existing:
             for attr, value in values.items():
                 setattr(existing, attr, value)
@@ -283,21 +311,23 @@ def load_slides(data: dict, *, overwrite: bool = False) -> Report:
 
 
 @transaction.atomic
-def load_announcements(data: dict) -> Report:
+def load_announcements(data: dict, *, overwrite: bool = False) -> Report:
     report = Report()
     for template in data["templates"]:
         text = _bilingual(template, "text")
-        _, created = AnnouncementTemplate.objects.update_or_create(
-            key=template["key"],
-            defaults={
+        _seed_row(
+            AnnouncementTemplate,
+            report,
+            f"template {template['key']}",
+            {"key": template["key"]},
+            {
                 "level": template["level"],
                 "takeover": bool(template.get("takeover", False)),
                 "text_hu": text["hu"],
                 "text_en": text["en"],
             },
+            overwrite=overwrite,
         )
-        report.created += int(created)
-        report.updated += int(not created)
     return report
 
 
@@ -308,11 +338,11 @@ def load_all(directory: Path, *, only: set[str] | None = None, overwrite: bool =
     if "event" in wanted:
         report.merge(load_event(data["event"], overwrite=overwrite))
     if "games" in wanted:
-        report.merge(load_games(data["games"]))
+        report.merge(load_games(data["games"], overwrite=overwrite))
     if "schedule" in wanted:
-        report.merge(load_schedule(data["schedule"]))
+        report.merge(load_schedule(data["schedule"], overwrite=overwrite))
     if "slides" in wanted:
         report.merge(load_slides(data["slides"], overwrite=overwrite))
     if "announcements" in wanted:
-        report.merge(load_announcements(data["announcements"]))
+        report.merge(load_announcements(data["announcements"], overwrite=overwrite))
     return report

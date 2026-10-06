@@ -2,23 +2,28 @@ import Countdown, { type CountdownRenderProps } from "react-countdown";
 
 import type { Pass } from "../api/client";
 import { asLive, type CountdownLive } from "../api/live";
-import { UI, primaryLang } from "../lib/i18n";
+import { UI, ui } from "../lib/i18n";
 import { Body, Kicker, Title } from "./common";
 
 export function CountdownSlide({ pass }: { pass: Pass }) {
   const live = asLive<CountdownLive>(pass.live);
-  const lang = primaryLang(pass.lang);
-  const labels = UI[lang];
   const renderer = ({ days, hours, minutes, seconds, completed }: CountdownRenderProps) => {
     if (completed) {
-      return <p className="text-[112px] font-extrabold leading-none">{labels.started}</p>;
+      return pass.lang === "both" ? (
+        <p className="text-[112px] font-extrabold leading-none">
+          <span className="block">{UI.hu.started}</span>
+          <span className="block text-[0.72em] text-ink-muted">{UI.en.started}</span>
+        </p>
+      ) : (
+        <p className="text-[112px] font-extrabold leading-none">{ui("started", pass.lang)}</p>
+      );
     }
     const blocks: Array<[number, string]> = [
-      [hours, labels.hours],
-      [minutes, labels.minutes],
-      [seconds, labels.seconds],
+      [hours, ui("hours", pass.lang)],
+      [minutes, ui("minutes", pass.lang)],
+      [seconds, ui("seconds", pass.lang)],
     ];
-    if (days > 0) blocks.unshift([days, labels.days]);
+    if (days > 0) blocks.unshift([days, ui("days", pass.lang)]);
     return (
       <div className="flex gap-10" data-testid="countdown">
         {blocks.map(([value, label]) => (

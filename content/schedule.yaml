@@ -3,6 +3,8 @@
 # Loaded into ScheduleEntry rows by `manage.py loadcontent`.
 #
 # Fields
+#   key         stable lowercase slug the import matches on; rename titles freely,
+#               never reuse a key for a different slot.
 #   time        local wall-clock time, HH:MM
 #   day_offset  0 for the first day, 1 for after midnight. The app combines
 #               event.starts_at's date, day_offset and time into one timestamp.
@@ -15,7 +17,8 @@
 # "A menetrend csak iránymutató" / "The schedule is only a guideline".
 
 entries:
-  - time: "15:30"
+  - key: "minecraft-start"
+    time: "15:30"
     day_offset: 0
     type: play
     game: minecraft
@@ -23,7 +26,8 @@ entries:
     title:
       hu: "Kezdés egy kis építkezéssel"
       en: "Start with a bit of building"
-  - time: "17:00"
+  - key: "tf2"
+    time: "17:00"
     day_offset: 0
     type: play
     game: tf2
@@ -31,7 +35,8 @@ entries:
     title:
       hu: "Szedd össze a csapatod"
       en: "Round up your team"
-  - time: "18:40"
+  - key: "dinner-break"
+    time: "18:40"
     day_offset: 0
     type: break
     game: ""
@@ -42,7 +47,8 @@ entries:
     note:
       hu: "Egyél és igyál valamit"
       en: "Grab some food and a drink"
-  - time: "19:00"
+  - key: "l4d2"
+    time: "19:00"
     day_offset: 0
     type: play
     game: left4dead2
@@ -50,7 +56,8 @@ entries:
     title:
       hu: "Négyfős túlélés"
       en: "Four-player survival"
-  - time: "20:00"
+  - key: "cs2-tournament"
+    time: "20:00"
     day_offset: 0
     type: highlight
     game: cs2
@@ -61,7 +68,8 @@ entries:
     note:
       hu: "Szurkolj, vagy készülj a saját meccsedre"
       en: "Cheer from the sidelines or get ready for your match"
-  - time: "20:00"
+  - key: "openttd"
+    time: "20:00"
     day_offset: 0
     type: play
     game: openttd
@@ -72,7 +80,8 @@ entries:
     note:
       hu: "A CS2-versennyel egyszerre indul"
       en: "Starts at the same time as the CS2 tournament"
-  - time: "22:00"
+  - key: "cs2-awards"
+    time: "22:00"
     day_offset: 0
     type: highlight
     game: ""
@@ -83,7 +92,8 @@ entries:
     note:
       hu: "A közös gyülekezőnél találkozunk, a díjátadó nagyjából 15 percig tart"
       en: "Meet in the shared gathering area. The ceremony takes about 15 minutes"
-  - time: "22:15"
+  - key: "garrys-mod"
+    time: "22:15"
     day_offset: 0
     type: play
     game: garrys-mod
@@ -91,7 +101,8 @@ entries:
     title:
       hu: "Egy kis hülyülés a díjátadó után"
       en: "Mess around after the awards"
-  - time: "23:00"
+  - key: "xonotic"
+    time: "23:00"
     day_offset: 0
     type: play
     game: xonotic
@@ -99,7 +110,8 @@ entries:
     title:
       hu: "Pörgős meccsek éjfél előtt"
       en: "Fast-paced matches before midnight"
-  - time: "23:40"
+  - key: "midnight-break"
+    time: "23:40"
     day_offset: 0
     type: break
     game: ""
@@ -110,7 +122,8 @@ entries:
     note:
       hu: "Kávé vagy energiaital, ha még kell"
       en: "Coffee or an energy drink if you still need one"
-  - time: "00:00"
+  - key: "scp"
+    time: "00:00"
     day_offset: 1
     type: play
     game: scp
@@ -118,7 +131,8 @@ entries:
     title:
       hu: "Éjféli horror"
       en: "Midnight horror"
-  - time: "01:40"
+  - key: "break-0140"
+    time: "01:40"
     day_offset: 1
     type: break
     game: ""
@@ -129,7 +143,8 @@ entries:
     note:
       hu: "Igyál vizet, mosd meg az arcod, aztán mehet tovább"
       en: "Drink some water, wash your face, then carry on"
-  - time: "02:00"
+  - key: "satisfactory"
+    time: "02:00"
     day_offset: 1
     type: play
     game: satisfactory
@@ -137,7 +152,8 @@ entries:
     title:
       hu: "Hajnali gyárépítés"
       en: "Late-night factory building"
-  - time: "03:40"
+  - key: "break-0340"
+    time: "03:40"
     day_offset: 1
     type: break
     game: ""
@@ -148,7 +164,8 @@ entries:
     note:
       hu: "Nyújtózz és igyál valamit"
       en: "Stretch your legs and get a drink"
-  - time: "04:00"
+  - key: "css"
+    time: "04:00"
     day_offset: 1
     type: play
     game: css
@@ -156,7 +173,8 @@ entries:
     title:
       hu: "Régi kedvenc hajnalban"
       en: "An old favourite at dawn"
-  - time: "05:40"
+  - key: "breakfast-break"
+    time: "05:40"
     day_offset: 1
     type: break
     game: ""
@@ -167,7 +185,8 @@ entries:
     note:
       hu: "Kávé és valami harapnivaló"
       en: "Coffee and a quick bite"
-  - time: "06:00"
+  - key: "supertuxkart"
+    time: "06:00"
     day_offset: 1
     type: play
     game: supertuxkart

@@ -128,3 +128,16 @@ def test_bracket_client_picks_the_first_open_tournament(content, fixture_json):
     )
     result = BracketClient(row).fetch()
     assert result.ok and result.data["id"] == 3
+
+
+@respx.mock
+def test_thumbnail_fetch_stays_on_the_streams_origin(content):
+    client = StreamsClient(_configure("streams", "https://streams.example/api"))
+    respx.get("https://streams.example/thumbs/1.jpg").respond(
+        200, content=b"img", headers={"content-type": "image/jpeg"}
+    )
+    assert client.fetch_bytes("/thumbs/1.jpg") == (b"img", "image/jpeg")
+    assert client.fetch_bytes("https://streams.example/thumbs/1.jpg") == (b"img", "image/jpeg")
+    for url in ("https://evil.example/x.jpg", "http://streams.example/x.jpg", "ftp://a/b"):
+        with pytest.raises(ValueError):
+            client.fetch_bytes(url)

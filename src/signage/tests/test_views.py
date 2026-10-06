@@ -1,6 +1,7 @@
 from django.conf import settings
+from django.utils import timezone
 
-from signage.models import Event, Phase
+from signage.models import Announcement, Event, Phase
 
 
 def test_bundle_and_etag(client, content):
@@ -46,3 +47,10 @@ def test_other_endpoints(client, content):
 def test_backend_root_goes_to_the_admin(client):
     response = client.get("/")
     assert response.status_code == 302 and response["Location"] == "/admin/"
+
+
+def test_active_announcement_ids_are_strings(client, content):
+    row = Announcement.objects.create(text_hu="szia", text_en="hi", starts_at=timezone.now())
+    results = client.get("/api/v1/announcements/active/").json()["results"]
+    assert results[0]["id"] == str(row.pk)
+    assert client.get("/api/v1/screens/main/bundle/").json()["announcement"]["id"] == str(row.pk)

@@ -1,11 +1,10 @@
 import type { Pass } from "../api/client";
 import { asLive, type StreamsLive } from "../api/live";
-import { UI, primaryLang } from "../lib/i18n";
+import { ui } from "../lib/i18n";
 import { EmptyState, Footer, Title } from "./common";
 
 export function StreamsSlide({ pass }: { pass: Pass }) {
   const live = asLive<StreamsLive>(pass.live);
-  const lang = primaryLang(pass.lang);
   const channels = live?.live ?? [];
   return (
     <div className="flex h-full flex-col gap-5">
@@ -28,7 +27,7 @@ export function StreamsSlide({ pass }: { pass: Pass }) {
                 <span className="min-w-0 flex-1 truncate text-[32px] font-semibold leading-tight" data-allow-clip>{channel.name}</span>
                 {channel.audio_only ? (
                   <span className="badge badge-outline h-[34px] border-ink-dim px-3 text-[22px] uppercase text-ink-muted">
-                    {UI[lang].audio}
+                    {ui("audio", pass.lang)}
                   </span>
                 ) : null}
               </div>

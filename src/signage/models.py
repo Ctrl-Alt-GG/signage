@@ -4,6 +4,7 @@ edited through the Django admin; `manage.py loadcontent` only seeds it from cont
 from __future__ import annotations
 
 import re
+import uuid
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -38,7 +39,22 @@ class Bilingual:
         return {lang: getattr(self, f"{field}_{lang}", "") or "" for lang in LANGS}
 
 
-class Phase(TimeStamped, Bilingual):
+class Origin(models.TextChoices):
+    SEED = "seed", _("Seeded from YAML")
+    ADMIN = "admin", _("Edited in the admin")
+
+
+class SeedOwned(models.Model):
+    """Rows `loadcontent` creates. Once saved in the admin they carry the admin origin and a
+    later import leaves them alone unless overwrite is requested."""
+
+    origin = models.CharField(max_length=5, choices=Origin, default=Origin.SEED)
+
+    class Meta:
+        abstract = True
+
+
+class Phase(TimeStamped, SeedOwned, Bilingual):
     key = models.SlugField(unique=True)
     name_hu = models.CharField(max_length=60)
     name_en = models.CharField(max_length=60)
@@ -178,7 +194,7 @@ class DisplaySettings(SingletonModel):
         return "Display settings"
 
 
-class Game(TimeStamped):
+class Game(TimeStamped, SeedOwned):
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=100)
     short = models.CharField(max_length=40)
@@ -204,12 +220,18 @@ class Game(TimeStamped):
             raise ValidationError({"projectile_keys": _("Must be a list of strings.")})
 
 
-class ScheduleEntry(TimeStamped, Bilingual):
+class ScheduleEntry(TimeStamped, SeedOwned, Bilingual):
     class Type(models.TextChoices):
         PLAY = "play", _("Play")
         BREAK = "break", _("Break")
         HIGHLIGHT = "highlight", _("Highlight")
 
+    key = models.SlugField(
+        max_length=60,
+        unique=True,
+        blank=True,
+        help_text=_("Stable id the YAML import matches on. Left empty, one is generated."),
+    )
     time = models.TimeField()
     day_offset = models.SmallIntegerField(default=0)
     type = models.CharField(max_length=9, choices=Type, default=Type.PLAY)
@@ -228,13 +250,18 @@ class ScheduleEntry(TimeStamped, Bilingual):
     def __str__(self) -> str:
         return f"{self.time:%H:%M} {self.title_hu}"
 
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = f"entry-{uuid.uuid4().hex[:10]}"
+        super().save(*args, **kwargs)
+
     def starts_at(self, event: Event) -> datetime:
         first_day = event.starts_at.astimezone(event.tz).date()
         local = datetime.combine(first_day + timedelta(days=self.day_offset), self.time)
         return local.replace(tzinfo=event.tz)
 
 
-class Slide(TimeStamped, Bilingual):
+class Slide(TimeStamped, SeedOwned, Bilingual):
     class Layout(models.TextChoices):
         HERO = "hero", "hero"
         LIST = "list", "list"
@@ -259,10 +286,6 @@ class Slide(TimeStamped, Bilingual):
     class BilingualMode(models.TextChoices):
         ALTERNATE = "alternate", _("Hungarian pass, then English pass")
         STACKED = "stacked", _("Both languages on one pass")
-
-    class Origin(models.TextChoices):
-        SEED = "seed", _("Seeded from YAML")
-        ADMIN = "admin", _("Edited in the admin")
 
     key = models.SlugField(primary_key=True, max_length=60)
     layout = models.CharField(max_length=12, choices=Layout)
@@ -307,7 +330,6 @@ class Slide(TimeStamped, Bilingual):
     link_label_en = models.CharField(max_length=120, blank=True)
     link_qr = models.BooleanField(default=False)
     notes = models.TextField(blank=True, help_text=_("Author notes. Never shown."))
-    origin = models.CharField(max_length=5, choices=Origin, default=Origin.SEED)
 
     class Meta:
         ordering = ("-priority", "order", "key")
@@ -407,7 +429,7 @@ class ScreenSlide(models.Model):
         return f"{self.screen_id}:{self.slide_id}"
 
 
-class AnnouncementTemplate(TimeStamped, Bilingual):
+class AnnouncementTemplate(TimeStamped, SeedOwned, Bilingual):
     class Level(models.TextChoices):
         INFO = "info", _("Info")
         WARNING = "warning", _("Warning")

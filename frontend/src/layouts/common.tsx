@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 
 import type { Pass, PassLang, SlideItem } from "../api/client";
 import { Markdown } from "../components/Markdown";
-import { Text, UI, joined, pick, primaryLang } from "../lib/i18n";
+import { Text, UI, joined, pick, ui } from "../lib/i18n";
 
 export function Kicker({ pass }: { pass: Pass }) {
   const text = joined(pass.content.kicker, pass.lang);
@@ -59,7 +59,6 @@ export function Body({ pass, size = 44 }: { pass: Pass; size?: number }) {
 }
 
 export function Footer({ pass, stale = false }: { pass: Pass; stale?: boolean }) {
-  const lang = primaryLang(pass.lang);
   const text = joined(pass.content.footer, pass.lang);
   if (!text && !stale) return null;
   return (
@@ -67,7 +66,7 @@ export function Footer({ pass, stale = false }: { pass: Pass; stale?: boolean })
       {text ? <Markdown text={text} /> : null}
       {stale ? (
         <span className="badge badge-outline h-[36px] border-ink-dim px-3 text-[22px] text-ink-dim">
-          {UI[lang].stale}
+          {ui("stale", pass.lang)}
         </span>
       ) : null}
     </p>

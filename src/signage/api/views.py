@@ -110,7 +110,7 @@ class ActiveAnnouncementsView(APIView):
         now = timezone.now()
         rows = [
             {
-                "id": a.pk,
+                "id": str(a.pk),
                 "level": a.level,
                 "takeover": a.takeover,
                 "text": a.pair("text"),

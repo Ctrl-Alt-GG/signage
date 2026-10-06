@@ -20,7 +20,7 @@ export const UI = {
     seconds: "mp",
     live: "élő",
     audio: "hang",
-    more: (n: number) => `+${n} további a servers.ctrl-alt-gg.hu oldalon`,
+    more: (n: number) => `+${n} további szerver`,
     started: "Elkezdődött!",
   },
   en: {
@@ -35,13 +35,26 @@ export const UI = {
     seconds: "sec",
     live: "live",
     audio: "audio",
-    more: (n: number) => `+${n} more at servers.ctrl-alt-gg.hu`,
+    more: (n: number) => `+${n} more servers`,
     started: "We are live!",
   },
 } as const;
 
 export function primaryLang(lang: PassLang): Lang {
   return lang === "en" ? "en" : "hu";
+}
+
+export type UiKey = Exclude<keyof typeof UI.hu, "more">;
+
+/** A chrome label in one language, or "magyar · english" when the pass shows both. */
+export function ui(key: UiKey, lang: PassLang): string {
+  if (lang !== "both") return UI[lang][key];
+  return `${UI.hu[key]} · ${UI.en[key]}`;
+}
+
+export function uiMore(count: number, lang: PassLang): string {
+  if (lang !== "both") return UI[lang].more(count);
+  return `${UI.hu.more(count)} · ${UI.en.more(count)}`;
 }
 
 /** "Magyar · English" on one line for labels; the English half is dropped when identical. */

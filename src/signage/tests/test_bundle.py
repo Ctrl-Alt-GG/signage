@@ -3,7 +3,17 @@ from datetime import timedelta
 import pytest
 from django.utils import timezone
 
-from signage.models import Announcement, Event, Integration, Phase, Screen, ScreenSlide, Slide
+from signage.models import (
+    Announcement,
+    DisplaySettings,
+    Event,
+    Integration,
+    Phase,
+    Screen,
+    ScreenSlide,
+    Slide,
+    SlideItem,
+)
 from signage.rendering.bundle import build_bundle
 
 
@@ -92,6 +102,33 @@ def test_version_changes_with_content(event, screen, at):
     assert build_bundle(screen, at(1))["version"] != before
 
 
+def test_version_follows_items_event_and_stage(event, screen, at):
+    _set_phase(event, "play")
+    bundle = build_bundle(screen, at(1))
+    version = bundle["version"]
+    assert build_bundle(screen, at(1))["version"] == version
+    assert bundle["stage"]["safe"] == {"x": 96, "y": 204, "width": 1728, "height": 564}
+
+    shown = {p["slide"] for p in bundle["passes"]}
+    item = SlideItem.objects.filter(slide__key__in=shown).first()
+    item.text_hu = "Szerkesztett pont"
+    item.save()
+    after_item = build_bundle(screen, at(1))["version"]
+    assert after_item != version
+
+    event.tagline = "Új szlogen"
+    event.save()
+    after_event = build_bundle(screen, at(1))["version"]
+    assert after_event != after_item
+
+    display = DisplaySettings.get_solo()
+    display.safe_x = 120
+    display.save()
+    bundle = build_bundle(screen, at(1))
+    assert bundle["version"] != after_event
+    assert bundle["stage"]["safe"]["x"] == 120
+
+
 def test_announcement_precedence_and_takeover(event, screen, at):
     _set_phase(event, "play")
     now = at(1)
@@ -100,7 +137,7 @@ def test_announcement_precedence_and_takeover(event, screen, at):
         text_hu="tűz", text_en="fire", level="urgent", takeover=True, starts_at=now
     )
     bundle = build_bundle(screen, now)
-    assert bundle["announcement"]["id"] == urgent.pk
+    assert bundle["announcement"]["id"] == str(urgent.pk)
     assert bundle["announcement"]["takeover"] is True
     urgent.ends_at = now - timedelta(seconds=1)
     urgent.save()
@@ -113,7 +150,7 @@ def test_announcement_can_target_one_screen(event, screen, at):
     announcement = Announcement.objects.create(text_hu="x", text_en="x", starts_at=now)
     announcement.screens.add(other)
     assert build_bundle(screen, now)["announcement"] is None
-    assert build_bundle(other, now)["announcement"]["id"] == announcement.pk
+    assert build_bundle(other, now)["announcement"]["id"] == str(announcement.pk)
 
 
 @pytest.mark.django_db

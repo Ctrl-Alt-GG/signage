@@ -22,7 +22,7 @@ services:
       MINIO_ROOT_USER: signage
       MINIO_ROOT_PASSWORD: local-only-password
     volumes:
-      - ./data/local-minio:/data
+      - minio-data:/data
     ports:
       - "127.0.0.1:9000:9000"
     healthcheck:
@@ -38,7 +38,7 @@ services:
     environment: *backend-environment
     restart: "no"
     volumes:
-      - ./data/local-db:/app/data/db
+      - local-db:/app/data/db
     tmpfs:
       - /tmp:uid=10001,gid=10001,mode=1777
     command:
@@ -59,7 +59,7 @@ services:
       dockerfile: docker/backend.Dockerfile
     environment: *backend-environment
     volumes:
-      - ./data/local-db:/app/data/db
+      - local-db:/app/data/db
     tmpfs:
       - /tmp:uid=10001,gid=10001,mode=1777
     healthcheck:
@@ -82,3 +82,9 @@ services:
     depends_on:
       web:
         condition: service_healthy
+
+# Named volumes are created owned by the container users (MinIO 10002, backend 10001);
+# bind mounts to missing host directories would be root-owned and unwritable.
+volumes:
+  minio-data:
+  local-db:

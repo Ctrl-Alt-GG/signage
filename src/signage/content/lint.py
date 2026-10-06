@@ -3,6 +3,7 @@ scripts/render_content.py can use them without the application installed."""
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable
 
 BANNED_GLYPHS = {
@@ -110,8 +111,15 @@ def lint_slides(slides: dict, phases: Iterable[str]) -> None:
 
 def lint_schedule(schedule: dict, games: Iterable[str]) -> None:
     game_slugs = set(games)
+    keys: set[str] = set()
     for index, entry in enumerate(schedule.get("entries", [])):
         where = f"schedule.yaml:entries[{index}]"
+        key = entry.get("key")
+        if not isinstance(key, str) or not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,59}", key):
+            raise LintError(f"{where}: key missing or not a lowercase slug: {key!r}")
+        if key in keys:
+            raise LintError(f"{where}: duplicated key {key!r}")
+        keys.add(key)
         if entry.get("type") not in ("play", "break", "highlight"):
             raise LintError(f"{where}: type must be play, break or highlight")
         require_bilingual(entry.get("title"), f"{where}.title")

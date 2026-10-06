@@ -47,7 +47,7 @@ export function App({ apiBase, fallbackScreen = "main" }: { apiBase: string; fal
   const backgroundUrl = `${apiBase}display/background.svg`;
 
   return (
-    <Stage backgroundUrl={backgroundUrl}>
+    <Stage backgroundUrl={backgroundUrl} stage={bundle?.stage}>
       <OfflineDot visible={offline} />
       {bundle ? (
         <TopRight
@@ -71,8 +71,13 @@ export function App({ apiBase, fallbackScreen = "main" }: { apiBase: string; fal
             onPassChange={onPassChange}
           />
         ) : (
-          <div className="flex h-full w-full items-end pb-6 text-[30px] text-ink-dim" data-testid="empty">
-            {bundle ? UI.hu.nothing : ""}
+          <div className="flex h-full w-full flex-col justify-end gap-1 pb-6 text-[30px] text-ink-dim" data-testid="empty">
+            {bundle ? (
+              <>
+                <span>{UI.hu.nothing}</span>
+                <span className="text-[0.72em]">{UI.en.nothing}</span>
+              </>
+            ) : null}
           </div>
         )}
       </div>

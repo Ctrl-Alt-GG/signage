@@ -4,6 +4,7 @@ passes, plus the active announcement, the phase and the clock."""
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 from datetime import datetime
 from typing import Any
@@ -14,7 +15,16 @@ from django.urls import reverse
 from signage.integrations.bracket import BracketClient
 from signage.integrations.projectile import ProjectileClient
 from signage.integrations.streams import StreamsClient
-from signage.models import LANGS, Announcement, Event, Integration, Phase, Screen, Slide
+from signage.models import (
+    LANGS,
+    Announcement,
+    DisplaySettings,
+    Event,
+    Integration,
+    Phase,
+    Screen,
+    Slide,
+)
 from signage.rendering.phases import resolve_phase
 from signage.rendering.placeholders import UnresolvedPlaceholderError, resolve
 from signage.rendering.schedule import build_schedule_view
@@ -107,7 +117,9 @@ def live_data(slide: Slide, event: Event, now: datetime, warnings: list[str]) ->
     if result.data is None:
         return {"empty": True, "stale": True, "error": result.error}
     data = dict(result.data)
-    data["stale"] = result.stale
+    # Stale when our transport cache is stale or when the upstream reports its own source
+    # as stale (Streams does), so neither case shows as fresh.
+    data["stale"] = bool(result.stale) or data.get("source_status") == "stale"
     if slide.source == Slide.Source.STREAMS:
         for channel in data.get("live", []):
             channel["thumbnail_url"] = reverse(
@@ -197,7 +209,6 @@ def build_bundle(
         slides = select_slides(screen, phase, now)
 
     passes: list[dict] = []
-    hash_parts: list[str] = [phase.key if phase else "-", screen.slug, str(screen.updated_at)]
     for slide in slides:
         live = live_data(slide, event, now, warnings)
         if slide.is_live and live is None and not preview_slide:
@@ -215,29 +226,22 @@ def build_bundle(
                 {**slide_passes[0], "key": f"{slide.key}:{preview_lang}", "lang": preview_lang}
             ]
         passes.extend(slide_passes)
-        hash_parts.append(f"{slide.key}:{slide.updated_at.isoformat()}")
-        if live is not None:
-            hash_parts.append(hashlib.sha256(repr(sorted(live.items())).encode()).hexdigest()[:12])
 
     announcement_obj = None if preview_slide else active_announcement(screen, now)
     announcement: dict | None = None
     if announcement_obj:
         announcement = {
-            "id": announcement_obj.pk,
+            "id": str(announcement_obj.pk),
             "level": announcement_obj.level,
             "takeover": announcement_obj.takeover,
             "text": announcement_obj.pair("text"),
             "ends_at": announcement_obj.ends_at.isoformat() if announcement_obj.ends_at else None,
         }
-        hash_parts.append(f"ann:{announcement_obj.pk}:{announcement_obj.updated_at.isoformat()}")
     elif not preview_slide:
         announcement = _mirrored_announcement(now)
-        if announcement:
-            hash_parts.append("ann:projectile:" + announcement["text"]["hu"])
 
-    version = hashlib.sha256("|".join(hash_parts).encode()).hexdigest()[:16]
-    return {
-        "version": version,
+    display = DisplaySettings.get_solo()
+    bundle = {
         "generated_at": now.astimezone(event.tz).isoformat(),
         "screen": {
             "slug": screen.slug,
@@ -255,9 +259,34 @@ def build_bundle(
             "starts_at": event.starts_at.isoformat(),
             "ends_at": event.ends_at.isoformat(),
         },
+        "stage": {
+            "width": display.stage_width,
+            "height": display.stage_height,
+            "safe": {
+                "x": display.safe_x,
+                "y": display.safe_y,
+                "width": display.safe_width,
+                "height": display.safe_height,
+            },
+        },
         "announcement": announcement,
         "passes": passes,
         "warnings": warnings,
         "preview": bool(preview_slide),
         "default_screen": settings.SIGNAGE_DEFAULT_SCREEN,
     }
+    bundle["version"] = bundle_version(bundle)
+    return bundle
+
+
+VOLATILE_KEYS = frozenset({"version", "generated_at", "clock"})
+
+
+def bundle_version(bundle: dict[str, Any]) -> str:
+    """ETag value: a hash of everything in the response except the current time, so an
+    edited inline item, event value, live row or stage setting changes it and an unchanged
+    bundle keeps it."""
+    stable = {key: value for key, value in bundle.items() if key not in VOLATILE_KEYS}
+    stable["timezone"] = bundle["clock"]["timezone"]
+    payload = json.dumps(stable, sort_keys=True, default=str).encode()
+    return hashlib.sha256(payload).hexdigest()[:16]

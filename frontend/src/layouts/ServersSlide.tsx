@@ -1,13 +1,12 @@
 import type { Pass } from "../api/client";
 import { asLive, type ServersLive } from "../api/live";
-import { UI, primaryLang } from "../lib/i18n";
+import { uiMore } from "../lib/i18n";
 import { EmptyState, Footer, Title } from "./common";
 
 const MAX_CARDS = 8;
 
 export function ServersSlide({ pass }: { pass: Pass }) {
   const live = asLive<ServersLive>(pass.live);
-  const lang = primaryLang(pass.lang);
   const servers = live?.servers ?? [];
   const more = Math.max(servers.length - MAX_CARDS, 0);
   return (
@@ -39,7 +38,7 @@ export function ServersSlide({ pass }: { pass: Pass }) {
       )}
       <div className="flex items-center gap-6">
         <Footer pass={pass} stale={Boolean(live?.stale)} />
-        {more > 0 ? <span className="text-[30px] text-ink-muted">{UI[lang].more(more)}</span> : null}
+        {more > 0 ? <span className="text-[30px] text-ink-muted">{uiMore(more, pass.lang)}</span> : null}
       </div>
     </div>
   );

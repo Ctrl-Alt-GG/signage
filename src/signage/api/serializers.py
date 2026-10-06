@@ -40,6 +40,19 @@ class EventSummarySerializer(serializers.Serializer):
     ends_at = serializers.DateTimeField()
 
 
+class SafeAreaSerializer(serializers.Serializer):
+    x = serializers.IntegerField()
+    y = serializers.IntegerField()
+    width = serializers.IntegerField()
+    height = serializers.IntegerField()
+
+
+class StageSerializer(serializers.Serializer):
+    width = serializers.IntegerField()
+    height = serializers.IntegerField()
+    safe = SafeAreaSerializer()
+
+
 class AnnouncementSerializer(serializers.Serializer):
     id = serializers.CharField()
     level = serializers.ChoiceField(choices=("info", "warning", "urgent"))
@@ -93,6 +106,7 @@ class BundleSerializer(serializers.Serializer):
     phase = PhaseSerializer(allow_null=True)
     clock = ClockSerializer()
     event = EventSummarySerializer()
+    stage = StageSerializer()
     announcement = AnnouncementSerializer(allow_null=True)
     passes = PassSerializer(many=True)
     warnings = serializers.ListField(child=serializers.CharField())
