@@ -14,7 +14,9 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --frozen --no-dev
 COPY manage.py ./
 COPY src ./src
-RUN DJANGO_SECRET_KEY=build DJANGO_ALLOWED_HOSTS=localhost \
+# Django's system checks open a database connection (JSONField support), so the command
+# gets an in-memory SQLite database; the schema itself needs no data.
+RUN DJANGO_SECRET_KEY=build DJANGO_ALLOWED_HOSTS=localhost DATABASE_URL=sqlite://:memory: \
     uv run --frozen --no-dev python manage.py spectacular --file /openapi.yaml --validate
 
 # Stage 2: the Vite build.
