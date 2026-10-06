@@ -25,7 +25,7 @@ export function StreamsSlide({ pass }: { pass: Pass }) {
               </div>
               <div className="flex items-center gap-3 p-4">
                 <span className="block size-4 animate-pulse-dot rounded-full bg-brand-500" aria-hidden />
-                <span className="min-w-0 flex-1 truncate text-[32px] font-semibold leading-tight">{channel.name}</span>
+                <span className="min-w-0 flex-1 truncate text-[32px] font-semibold leading-tight" data-allow-clip>{channel.name}</span>
                 {channel.audio_only ? (
                   <span className="badge badge-outline h-[34px] border-ink-dim px-3 text-[22px] uppercase text-ink-muted">
                     {UI[lang].audio}

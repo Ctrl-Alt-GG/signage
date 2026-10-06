@@ -10,7 +10,7 @@ export function ListSlide({ pass }: { pass: Pass }) {
         <Footer pass={pass} />
       </div>
       <div className="min-w-0 flex-1 pt-6">
-        <Items items={pass.content.items} lang={pass.lang} availableHeight={440} columnWidth={1000} />
+        <Items items={pass.content.items} lang={pass.lang} availableHeight={430} columnWidth={1000} />
       </div>
     </div>
   );

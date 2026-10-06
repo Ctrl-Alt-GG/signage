@@ -217,28 +217,33 @@ admin shows a warning; never put a placeholder on the wall.
 
 ```
 +----------------------+-----------------------+-----------------------+
-| MOST                 | KÖVETKEZIK            | KÉSŐBB                |
+| MOST · NOW           | KÖVETKEZIK · NEXT     | KÉSŐBB · LATER        |
 | 20:00                | 22:00                 | 22:15                 |
-| Indul a CS2-verseny  | CS2-díjátadó          | Egy kis hülyülés...   |
-| [Counter-Strike 2]   | note                  | [Garry's Mod]         |
+| Counter-Strike 2     | CS2-díjátadó          | Garry's Mod           |
+| Indul a verseny ·    | CS2 awards            | Egy kis hülyülés ·    |
+| The tournament begins| note · note           | Mess around           |
 +----------------------+-----------------------+-----------------------+
-Title (72px) above the three cards; footer (guideline disclaimer) under them.
+Title (64px) above the three cards; footer (guideline disclaimer) under them.
 ```
 
-"Now" is the latest entry whose time is at or before the current time, "Next"
-the first entry after now, "Later" the one after that. Two entries sharing a
-time (the 20:00 pair) render in the same card, stacked. Cards use the row
-type accent on their left border (6px): play `brand-600` at 60 percent, break
-`accent-400`, highlight `brand-600` full with a soft glow. Empty state replaces
-the three cards with the `empty` text at 44px.
+The game name is the headline of a card (44px). The slot title is the
+small line beneath it, both languages joined. A slot without a game (a
+break, the awards) promotes the title to the headline, puts the English
+title beneath and shows the note as the small line. "Now" is the latest
+entry whose time is at or before the current time, "Next" the first entry
+after now, "Later" the one after that; entries sharing a time stack in one
+card (two at most). Cards use the row type accent on their left border:
+play `brand-600` at 60 percent, break `accent-400`, highlight `brand-600`.
+Empty state replaces the cards with the `empty` text in both languages.
 
 ### `schedule`
 
-A single-column timeline: the current entry plus the next seven, each a row
-with the time (mono 40px, accent colour), a dot on a vertical rail, the title
-(40px), the label pill (30px) and the note (30px muted) when present. Rows
-that are over are not shown. Footer carries the disclaimer. Same accents as
-`now_next`.
+A single-column timeline of the current slot and the next five: the time
+(mono 34px in the accent colour), a dot on a vertical rail, the game name
+(38px, extrabold) and the slot title small (26px, muted, both languages
+joined). The title above the timeline is 56px so six rows fit. Slots without a game show the Hungarian title large and the
+English title small. Notes are not shown; the room reads this from metres
+away. Footer carries the disclaimer. Same accents as `now_next`.
 
 ### `servers`
 
@@ -321,15 +326,21 @@ the target timestamp.
 ## 8. Readability rules
 
 1. Minimum text size 28px in stage space; body text 40px or larger.
-2. Six bullets per slide at most, two lines per bullet at most. Truncate
-   with an ellipsis rather than overflow; the lint in `scripts/render_content.py`
-   caps the item count, the template caps the lines with `line-clamp`.
+2. Four bullets per slide (five at most), about 40 Hungarian characters
+   each, so both languages fit. Lists shrink their font until the estimated
+   lines fit the box, never below 26px; nothing is truncated with an
+   ellipsis, and the screenshot check fails on text clipped by its box.
+   Data-driven names (servers, teams, channels) are the one place an
+   ellipsis is allowed, marked `data-allow-clip`.
 3. Contrast at least 7:1 for text on the field or on cards (white on
    `#130404` is about 18:1; `ink-muted` on `#130404` is about 8.3:1; `ink-dim`
    is decoration only, never text).
 4. One idea per slide. A slide that needs a second screen is two slides.
-5. Hungarian first. In `alternate` mode the Hungarian pass comes first; in
-   `stacked` mode Hungarian is the large line.
+5. Every slide is bilingual on one pass: Hungarian is the large, primary
+   line and English sits beneath it at 72 percent size in `ink-muted`.
+   Labels that must stay on one line join the two as "Magyar · English".
+   The `alternate` mode (a Hungarian pass, then an English pass) exists for
+   previews and screens pinned to one language, not for the rotation.
 6. No emoji in text. Icons come from an SVG set the agent vendors into the
    repo (Lucide is fine) and are rendered inline, in `brand-600` or
    `ink-muted`.

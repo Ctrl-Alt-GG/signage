@@ -18,27 +18,29 @@ This is the text that goes on the screens, rendered in a readable form from the 
 | `doors_countdown` | countdown | live:clock | setup | 20 | stacked | 90 |
 | `entrance` | hero | static | setup, arrival | 12 | stacked | 80 |
 | `welcome` | hero | static | arrival, play | 12 | stacked | 95 |
+| `start_here` | qr | static | all | 18 | stacked | 92 |
 | `wifi` | credentials | static | arrival, play, tournament, late | 15 | stacked | 85 |
-| `spawn` | qr | static | all | 18 | alternate | 80 |
-| `house_rules` | list | static | arrival, play | 20 | alternate | 70 |
-| `power_network` | split | static | arrival, play | 20 | alternate | 70 |
-| `help` | qr | static | setup, arrival, play, tournament, late, morning | 18 | alternate | 75 |
-| `voice` | list | static | arrival, play | 15 | alternate | 60 |
-| `downloads` | list | static | arrival, play | 18 | alternate | 60 |
+| `lobby_site` | qr | static | setup, arrival, play | 15 | stacked | 70 |
+| `house_rules` | list | static | arrival, play | 18 | stacked | 70 |
+| `power_network` | split | static | arrival, play | 18 | stacked | 70 |
+| `help` | qr | static | setup, arrival, play, tournament, late, morning | 18 | stacked | 75 |
+| `voice` | list | static | arrival, play | 15 | stacked | 60 |
+| `downloads` | list | static | arrival, play | 18 | stacked | 60 |
 | `organizers` | hero | static | arrival, play | 12 | stacked | 40 |
-| `now_next` | now_next | live:schedule | play, tournament, late, morning | 15 | alternate | 90 |
-| `schedule_upcoming` | schedule | live:schedule | play, tournament, late, morning | 18 | alternate | 65 |
-| `cs2_tournament` | list | static | arrival, play | 20 | alternate | 85 |
-| `servers` | servers | live:projectile | play, tournament, late, morning | 15 | alternate | 80 |
+| `now_next` | now_next | live:schedule | play, tournament, late, morning | 15 | stacked | 90 |
+| `schedule_upcoming` | schedule | live:schedule | play, tournament, late, morning | 18 | stacked | 65 |
+| `cs2_tournament` | list | static | arrival, play | 18 | stacked | 85 |
+| `bracket_site` | qr | static | arrival, play, tournament | 15 | stacked | 72 |
+| `servers` | servers | live:projectile | play, tournament, late, morning | 15 | stacked | 80 |
 | `console_corner` | hero | static | play, late | 12 | stacked | 45 |
-| `food` | list | static | play, late | 20 | alternate | 55 |
-| `streams_live` | streams | live:streams | play, tournament, late | 15 | alternate | 60 |
-| `streams_howto` | list | static | play, tournament | 18 | alternate | 40 |
-| `tournament_live` | tournament | live:bracket | tournament | 20 | alternate | 95 |
-| `survive` | list | static | late, morning | 18 | alternate | 55 |
-| `getting_home` | list | static | late, morning | 20 | alternate | 65 |
-| `safety` | list | static | all | 18 | alternate | 50 |
-| `social` | qr | static | play, late, morning, teardown | 15 | alternate | 35 |
+| `food` | list | static | play, late | 18 | stacked | 55 |
+| `streams_live` | streams | live:streams | play, tournament, late | 15 | stacked | 60 |
+| `streams_site` | qr | static | play, tournament, late | 15 | stacked | 42 |
+| `tournament_live` | tournament | live:bracket | tournament | 20 | stacked | 95 |
+| `survive` | list | static | late, morning | 18 | stacked | 55 |
+| `getting_home` | list | static | late, morning | 18 | stacked | 65 |
+| `safety` | list | static | all | 18 | stacked | 50 |
+| `social` | qr | static | play, late, morning, teardown | 15 | stacked | 35 |
 | `teardown` | hero | static | teardown | 20 | stacked | 99 |
 
 ## Slides
@@ -47,19 +49,19 @@ This is the text that goes on the screens, rendered in a readable form from the 
 
 Layout `countdown`, source `live:clock`, phases: setup.
 
-> Renders a live countdown (days, hours, minutes, seconds) to event.starts_at. After the target passes it shows title "Elkezdődött!" / "We are live!" and the player drops it from rotation.
+> Renders a live countdown to event.starts_at. After the target passes the player shows "Elkezdődött!" / "We are live!" and the slide leaves the rotation.
 
 **Magyar**
 
 - Kicker: Hamarosan
 - Title: **Kezdés {starts_at_time}-kor**
-- Body: Addig is: pakolj ki, dugd be a kék kábelt, frissítsd a játékaidat.
+- Body: Pakolj ki, dugd be a kék kábelt, frissítsd a játékaidat.
 
 **English**
 
 - Kicker: Soon
 - Title: **Starting at {starts_at_time}**
-- Body: Until then: unpack, plug in the blue cable, update your games.
+- Body: Unpack, plug in the blue cable, update your games.
 
 ### `entrance`
 
@@ -85,19 +87,43 @@ Layout `hero`, source `static`, phases: arrival, play.
 
 - Kicker: GL&HF, IRL.
 - Title: **Üdv a bulin, nerdek!**
-- Body: Pakolj ki, dugd be a kék kábelt, és nyisd meg a spawn.ctrl-alt-gg.hu oldalt. Ha betölt, fent vagy a hálózaton.
+- Body: Dugd be a kék kábelt, és nyisd meg a www.ctrl-alt-gg.hu oldalt. Ha betölt, fent vagy.
 
 **English**
 
 - Kicker: GL&HF, IRL.
 - Title: **Welcome to the party, nerds!**
-- Body: Unpack, plug in the blue cable and open spawn.ctrl-alt-gg.hu. If it loads, you are online.
+- Body: Plug in the blue cable and open www.ctrl-alt-gg.hu. If it loads, you are online.
+
+### `start_here`
+
+Layout `qr`, source `static`, phases: all.
+
+**Magyar**
+
+- Kicker: Innen indulj
+- Title: **www.ctrl-alt-gg.hu**
+- Items:
+  1. Játékok, menetrend, szerverek
+  1. Segítség és házirend
+  1. Linkek a többi oldalra
+- Link: Olvasd be: https://www.ctrl-alt-gg.hu (QR code)
+
+**English**
+
+- Kicker: Start here
+- Title: **www.ctrl-alt-gg.hu**
+- Items:
+  1. Games, schedule, servers
+  1. Help and house rules
+  1. Links to every other site
+- Link: Scan me: https://www.ctrl-alt-gg.hu (QR code)
 
 ### `wifi`
 
 Layout `credentials`, source `static`, phases: arrival, play, tournament, late.
 
-> The credentials layout shows the SSID and password in large monospace and a WIFI:T:WPA;S:{wifi_ssid};P:{wifi_password};; QR code so phones join with one scan. {wifi_note} resolves to wifi.note in event.yaml.
+> The credentials layout shows the SSID and password in large monospace and a WIFI: QR code so phones join with one scan. {wifi_note} resolves to wifi.note in event.yaml.
 
 **Magyar**
 
@@ -113,35 +139,29 @@ Layout `credentials`, source `static`, phases: arrival, play, tournament, late.
 - Footer: Network: {wifi_ssid}  Password: {wifi_password}
 - Link: wifi (QR code)
 
-### `spawn`
+### `lobby_site`
 
-Layout `qr`, source `static`, phases: all.
+Layout `qr`, source `static`, phases: setup, arrival, play.
 
 **Magyar**
 
-- Kicker: Minden egy helyen
-- Title: **spawn.ctrl-alt-gg.hu**
+- Kicker: Regisztráció
+- Title: **lobby.ctrl-alt-gg.hu**
 - Items:
-  1. Care: útmutatók és segítség
-  1. Lobby: regisztráció és csapatok
-  1. Bracket: a verseny menete és eredményei
-  1. Streams: élő adások a teremből
-  1. Szerverlista: címek és játékosszám
-  1. Filehost, Discord, Steam csoport
-- Link: Olvasd be, és mentsd el: https://spawn.ctrl-alt-gg.hu (QR code)
+  1. Jegy és regisztráció
+  1. Csapat létrehozása
+  1. Az állapotod egy helyen
+- Link: lobby.ctrl-alt-gg.hu: https://lobby.ctrl-alt-gg.hu (QR code)
 
 **English**
 
-- Kicker: Everything in one place
-- Title: **spawn.ctrl-alt-gg.hu**
+- Kicker: Registration
+- Title: **lobby.ctrl-alt-gg.hu**
 - Items:
-  1. Care: guides and support
-  1. Lobby: registration and teams
-  1. Bracket: tournament schedule and results
-  1. Streams: live broadcasts from the room
-  1. Server list: addresses and player counts
-  1. Filehost, Discord, Steam group
-- Link: Scan it and bookmark it: https://spawn.ctrl-alt-gg.hu (QR code)
+  1. Ticket and registration
+  1. Create your team
+  1. Your status in one place
+- Link: lobby.ctrl-alt-gg.hu: https://lobby.ctrl-alt-gg.hu (QR code)
 
 ### `house_rules`
 
@@ -151,23 +171,19 @@ Layout `list`, source `static`, phases: arrival, play.
 
 - Title: **Házirend**
 - Items:
-  1. Érkezz időben, a cuccodat te hozod és te viszed.
-  1. Csak fejhallgató. Hangfal tilos.
-  1. A hálózati beállításokhoz és a kábelekhez ne nyúlj.
-  1. Nincs csalás, nincs szándékos zavarás.
-  1. Enni-inni a kijelölt helyen. A gépeknél ne morzsázz.
-  1. A cuccodért te felelsz. Más gépéhez ne nyúlj. Legyél fair és jó fej.
+  1. Csak fejhallgató, hangfal tilos.
+  1. Hálózathoz, kábelekhez ne nyúlj.
+  1. Nincs csalás, nincs zavarás.
+  1. Más gépéhez ne nyúlj. Legyél fair.
 
 **English**
 
 - Title: **House rules**
 - Items:
-  1. Be on time. Bring and take away your own gear.
-  1. Headsets only. Speakers are not allowed.
-  1. Do not change network settings or swap cables.
-  1. No cheating, no deliberate disruption.
-  1. Eat and drink in the designated area. No crumbs at the rigs.
-  1. You are responsible for your gear. Do not touch other people's machines. Be fair and be cool.
+  1. Headsets only, no speakers.
+  1. Do not touch the network or the cables.
+  1. No cheating, no disruption.
+  1. Do not touch other people's rigs. Be fair.
 
 ### `power_network`
 
@@ -177,29 +193,25 @@ Layout `split`, source `static`, phases: arrival, play.
 
 - Title: **Áram és hálózat**
 - Column **Áram**:
-  1. Fejenként legfeljebb két aljzat. Több eszközhöz hozz elosztót.
+  1. Fejenként két aljzat. Hozz elosztót.
   1. UPS szigorúan tilos.
   1. Vízforraló, hősugárzó, hűtő: tilos.
-  1. Ha szikrázik vagy villog valami, azonnal szólj.
 - Column **Hálózat**:
-  1. Automatikus IP (DHCP). Statikus IP nem működik.
-  1. DNS-t ne állíts át: a 8.8.8.8 kikerüli a helyi cache-t.
-  1. Saját switch, router, access point: tilos.
-  1. Kábelt ne dugj át. Ha gond van, szólj.
+  1. Automatikus IP (DHCP), statikus nem megy.
+  1. DNS-t ne állíts, a 8.8.8.8 kikerüli a cache-t.
+  1. Saját switch, router, AP tilos.
 
 **English**
 
 - Title: **Power and network**
 - Column **Power**:
-  1. Two outlets per person. Bring a power strip for more devices.
-  1. UPS units are strictly forbidden.
+  1. Two outlets per person. Bring a power strip.
+  1. UPS units are forbidden.
   1. No kettles, heaters or fridges.
-  1. If something sparks or flickers, tell us immediately.
 - Column **Network**:
-  1. Automatic IP (DHCP). Static IPs do not work.
-  1. Do not set your own DNS: 8.8.8.8 bypasses the local cache.
-  1. No personal switches, routers or access points.
-  1. Do not re-plug cables. Ask if something is wrong.
+  1. Automatic IP (DHCP), static does not work.
+  1. Keep the DNS automatic, 8.8.8.8 skips the cache.
+  1. No personal switches, routers or APs.
 
 ### `help`
 
@@ -208,25 +220,23 @@ Layout `qr`, source `static`, phases: setup, arrival, play, tournament, late, mo
 **Magyar**
 
 - Kicker: Elakadtál?
-- Title: **Segítünk**
+- Title: **care.ctrl-alt-gg.hu**
 - Items:
-  1. care.ctrl-alt-gg.hu: útmutatók a gyakori gondokra.
-  1. Discord #support: több szervező is látja.
-  1. Személyesen: keress valakit staff pólóban.
-  1. Mondd el: hol ülsz, mi a gond, mit próbáltál.
-  1. Szólj időben. Nem zavarsz, ezért vagyunk itt.
+  1. Útmutatók a gyakori gondokra
+  1. Discord: #support
+  1. Keress valakit staff pólóban
+  1. Mondd el: hol ülsz, mi a gond
 - Link: care.ctrl-alt-gg.hu: https://care.ctrl-alt-gg.hu (QR code)
 
 **English**
 
 - Kicker: Stuck?
-- Title: **We can help**
+- Title: **care.ctrl-alt-gg.hu**
 - Items:
-  1. care.ctrl-alt-gg.hu: guides for the common problems.
-  1. Discord #support: several organizers see it.
-  1. In person: find anyone in a staff shirt.
-  1. Tell us where you sit, what is wrong and what you tried.
-  1. Ask early. You are not bothering us, that is why we are here.
+  1. Guides for the common problems
+  1. Discord: #support
+  1. Find anyone in a staff shirt
+  1. Say where you sit and what is wrong
 - Link: care.ctrl-alt-gg.hu: https://care.ctrl-alt-gg.hu (QR code)
 
 ### `voice`
@@ -237,19 +247,19 @@ Layout `list`, source `static`, phases: arrival, play.
 
 - Title: **Hang és chat**
 - Items:
-  1. Hang: TeamSpeak 3. A cím a servers.ctrl-alt-gg.hu oldalon.
-  1. Push-to-talk. A szomszédod fél méterre ül.
-  1. Szöveg: Discord. #announcements, #general, #support, #highlights.
-  1. Evés és köhögés közben némíts.
+  1. TeamSpeak 3: a cím a szerverlistán
+  1. Push-to-talk, a szomszédod közel ül
+  1. Szöveg: Discord #general, #support
+  1. Evés és köhögés közben némíts
 
 **English**
 
 - Title: **Voice and chat**
 - Items:
-  1. Voice: TeamSpeak 3. The address is on servers.ctrl-alt-gg.hu.
-  1. Push-to-talk. Your neighbour sits half a metre away.
-  1. Text: Discord. #announcements, #general, #support, #highlights.
-  1. Mute yourself while eating or coughing.
+  1. TeamSpeak 3: address on the server list
+  1. Push-to-talk, your neighbour is close
+  1. Text: Discord #general, #support
+  1. Mute while eating or coughing
 
 ### `downloads`
 
@@ -259,19 +269,19 @@ Layout `list`, source `static`, phases: arrival, play.
 
 - Title: **Letöltések**
 - Items:
-  1. Steam, Epic, Battle.net: a frissítés magától a helyi cache-ből jön, LAN-sebességgel.
-  1. Filehost: filehost.ctrl-alt-gg.hu böngészőből, vagy \\filehost.ctrl-alt-gg.hu. Felhasználó és jelszó: lanshare.
-  1. Felhőszinkront (OneDrive, Drive, iCloud) állítsd le.
-  1. Torrent tilos. Warez tilos. A vírusirtó maradjon bekapcsolva.
+  1. Steam, Epic, Battle.net: helyi cache-ből, gyorsan
+  1. Filehost: filehost.ctrl-alt-gg.hu (lanshare)
+  1. Felhőszinkront állítsd le
+  1. Torrent és warez tilos
 
 **English**
 
 - Title: **Downloads**
 - Items:
-  1. Steam, Epic, Battle.net: updates come from the local cache automatically, at LAN speed.
-  1. Filehost: filehost.ctrl-alt-gg.hu in a browser, or \\filehost.ctrl-alt-gg.hu. User and password: lanshare.
-  1. Pause cloud sync (OneDrive, Drive, iCloud).
-  1. No torrents. No piracy. Keep your antivirus on.
+  1. Steam, Epic, Battle.net: from the local cache, fast
+  1. Filehost: filehost.ctrl-alt-gg.hu (lanshare)
+  1. Pause cloud sync
+  1. No torrents, no piracy
 
 ### `organizers`
 
@@ -281,7 +291,7 @@ Layout `hero`, source `static`, phases: arrival, play.
 
 - Kicker: Szervezők
 - Title: **FiNT, Marcsello, TormaKris és Bence**
-- Body: Kérdésed van? Keresd azt, aki meghívott, vagy írj nekünk: {email}
+- Body: Kérdésed van? Keresd azt, aki meghívott, vagy írj: {email}
 
 **English**
 
@@ -298,30 +308,30 @@ Layout `now_next`, source `live:schedule`, phases: play, tournament, late, morni
 - Title: **Mi megy most?**
 - Column labels: Most, Következik, Később
 - Empty state: Nincs kiírt program. Játssz, amit szeretnél.
-- Footer: A menetrend csak iránymutató. Bármihez csatlakozhatsz bármikor.
+- Footer: A menetrend csak iránymutató.
 
 **English**
 
 - Title: **What is on now?**
 - Column labels: Now, Next, Later
 - Empty state: Nothing scheduled right now. Play whatever you like.
-- Footer: The schedule is only a guideline. Join anything at any time.
+- Footer: The schedule is only a guideline.
 
 ### `schedule_upcoming`
 
 Layout `schedule`, source `live:schedule`, phases: play, tournament, late, morning.
 
-> Shows the current entry and the next seven. Break rows use the gold accent, highlight rows the red accent with the glow, like the homepage timeline. Times are rendered in the venue time zone.
+> Shows the current slot and the next five. Each row is the time, the game name large and the slot title small; notes are not shown. Break rows use the gold accent, highlight rows the red accent.
 
 **Magyar**
 
 - Title: **Menetrend**
-- Footer: A menetrend csak iránymutató. Új szervert két program között kérj.
+- Footer: A menetrend csak iránymutató.
 
 **English**
 
 - Title: **Schedule**
-- Footer: The schedule is only a guideline. Ask for a new server between two slots.
+- Footer: The schedule is only a guideline.
 
 ### `cs2_tournament`
 
@@ -334,40 +344,62 @@ Layout `list`, source `static`, phases: arrival, play.
 - Kicker: Bajnokság
 - Title: **CS2-bajnokság 20:00-tól**
 - Items:
-  1. Nevezz a csapatoddal: bracket.ctrl-alt-gg.hu. A kapitány véglegesíti a nevezést.
-  1. A meccsek a kiírt időben kezdődnek. Tíz perccel előbb legyél a gépednél.
-  1. Szakadás esetén szólj az adminnak. A meccs megáll, amíg visszajössz.
-  1. Az admin szava döntő. Nincs csapatok közötti kiabálás a teremben.
-  1. Díjátadó 22:00-kor a közös gyülekezőnél, kb. 15 perc.
+  1. Nevezés: bracket.ctrl-alt-gg.hu
+  1. Légy a gépednél 10 perccel előbb
+  1. Az admin szava döntő
+  1. Díjátadó 22:00-kor a gyülekezőnél
 
 **English**
 
 - Kicker: Tournament
 - Title: **CS2 tournament from 20:00**
 - Items:
-  1. Sign up with your team at bracket.ctrl-alt-gg.hu. The captain finalizes the entry.
-  1. Matches start at the listed time. Be at your PC ten minutes early.
-  1. Disconnected? Tell the admin. The match pauses until you are back.
-  1. The admin's word is final. No shouting positions across the room.
-  1. Awards at 22:00 at the gathering area, about 15 minutes.
+  1. Sign up: bracket.ctrl-alt-gg.hu
+  1. Be at your PC 10 minutes early
+  1. The admin's word is final
+  1. Awards at 22:00 at the gathering area
+
+### `bracket_site`
+
+Layout `qr`, source `static`, phases: arrival, play, tournament.
+
+**Magyar**
+
+- Kicker: Bajnokság
+- Title: **bracket.ctrl-alt-gg.hu**
+- Items:
+  1. Nevezés a csapatoddal
+  1. Meccsek és időpontok
+  1. Eredmények és tabella
+- Link: bracket.ctrl-alt-gg.hu: https://bracket.ctrl-alt-gg.hu (QR code)
+
+**English**
+
+- Kicker: Tournament
+- Title: **bracket.ctrl-alt-gg.hu**
+- Items:
+  1. Sign up with your team
+  1. Matches and times
+  1. Results and standings
+- Link: bracket.ctrl-alt-gg.hu: https://bracket.ctrl-alt-gg.hu (QR code)
 
 ### `servers`
 
 Layout `servers`, source `live:projectile`, phases: play, tournament, late, morning.
 
-> Up to eight cards: game colour header, server name, players as "online / max" when Projectile reports a count, otherwise "max: N". Addresses are left to the server list page; the signage shows none.
+> Up to eight cards: game colour header, server name, players as "online / max" when Projectile reports a count, otherwise "max: N".
 
 **Magyar**
 
 - Title: **Szerverek**
 - Empty state: Most nincs elérhető szerveradat.
-- Footer: Teljes lista és címek: servers.ctrl-alt-gg.hu
+- Footer: Címek: servers.ctrl-alt-gg.hu
 
 **English**
 
 - Title: **Game servers**
 - Empty state: Server data is unavailable right now.
-- Footer: Full list and addresses: servers.ctrl-alt-gg.hu
+- Footer: Addresses: servers.ctrl-alt-gg.hu
 
 ### `console_corner`
 
@@ -377,13 +409,13 @@ Layout `hero`, source `static`, phases: play, late.
 
 - Kicker: Konzol Kuckó
 - Title: **Xbox Series X a kanapén**
-- Body: Game Pass Ultimate, két kontroller, nagy képernyő. Split-screen és co-op bárkinek, bármikor.
+- Body: Game Pass Ultimate, két kontroller, nagy képernyő. Bárkinek, bármikor.
 
 **English**
 
 - Kicker: Console Corner
 - Title: **Xbox Series X on the couch**
-- Body: Game Pass Ultimate, two controllers, a big screen. Split-screen and co-op for anyone, any time.
+- Body: Game Pass Ultimate, two controllers, a big screen. For anyone, any time.
 
 ### `food`
 
@@ -393,83 +425,81 @@ Layout `list`, source `static`, phases: play, late.
 
 - Title: **Kaja és pia**
 - Items:
-  1. Nincs büfé. Mindenki magának intézi.
-  1. Közös pizzarendelés: szólj a #general csatornán.
-  1. Wolt, Foodora: a megjegyzésbe írd, hogy LAN party, a bejáratnál találkoztok. A futár nem jön be.
-  1. Bolt: nézd meg a térképen a legközelebbi Spart vagy Tescót.
-  1. A gépeknél ne egyél. A szemét a kukába.
+  1. Nincs büfé, mindenki magának intézi
+  1. Közös pizzarendelés: #general
+  1. Futárral a bejáratnál találkozz
+  1. A gépeknél ne egyél
 
 **English**
 
 - Title: **Food and drink**
 - Items:
-  1. There is no catering. Everyone sorts their own meals.
-  1. Group pizza order: say so in #general.
-  1. Wolt, Foodora: write LAN party, meet at the entrance in the note. The courier will not come in.
-  1. Shops: check the map for the nearest Spar or Tesco.
-  1. Do not eat at the rigs. Trash goes in the bins.
+  1. No catering, sort your own meals
+  1. Group pizza order: #general
+  1. Meet the courier at the entrance
+  1. Do not eat at the rigs
 
 ### `streams_live`
 
 Layout `streams`, source `live:streams`, phases: play, tournament, late.
 
-> Cards for channels with status "live": thumbnail, name, audio-only badge. Offline channels are not listed. When the upstream is stale the footer gets a small "adat frissítése folyamatban" / "data may be stale" tag; the slide never shows an error message to the room.
+> Cards for channels with status "live": thumbnail, name, audio-only badge. When the upstream is stale the footer gets a small tag; the slide never shows an error message to the room.
 
 **Magyar**
 
 - Title: **Élőben most**
 - Empty state: Most senki nem ad. Indíts egyet te!
-- Footer: Nézd: streams.ctrl-alt-gg.hu, fülhallgatóval.
+- Footer: streams.ctrl-alt-gg.hu, fülhallgatóval
 
 **English**
 
 - Title: **Live now**
 - Empty state: Nobody is live. Start a stream!
-- Footer: Watch at streams.ctrl-alt-gg.hu, with headphones.
+- Footer: streams.ctrl-alt-gg.hu, with headphones
 
-### `streams_howto`
+### `streams_site`
 
-Layout `list`, source `static`, phases: play, tournament.
+Layout `qr`, source `static`, phases: play, tournament, late.
 
 **Magyar**
 
 - Kicker: Streams
-- Title: **Adj te is**
+- Title: **streams.ctrl-alt-gg.hu**
 - Items:
-  1. OBS: Settings, Stream, Custom. A szerver az rtmps cím a streams.ctrl-alt-gg.hu útmutatójából.
-  1. Stream key: live/neved. Csak betű, szám, kötőjel, aláhúzás.
-  1. Jelszót a szervezőktől kérj. Soha ne mutasd adásban.
-  1. A játékot vedd fel, ne az egész képernyőt.
+  1. Élő adások a teremből
+  1. Nézd fülhallgatóval
+  1. Adj te is: OBS, kulcs live/neved
+- Link: streams.ctrl-alt-gg.hu: https://streams.ctrl-alt-gg.hu (QR code)
 
 **English**
 
 - Kicker: Streams
-- Title: **Go live**
+- Title: **streams.ctrl-alt-gg.hu**
 - Items:
-  1. OBS: Settings, Stream, Custom. The server is the rtmps address from the guide on streams.ctrl-alt-gg.hu.
-  1. Stream key: live/yourname. Letters, digits, hyphens and underscores only.
-  1. Ask the organizers for the password. Never show it on stream.
-  1. Capture the game, not your whole screen.
+  1. Live broadcasts from the room
+  1. Watch with headphones
+  1. Go live too: OBS, key live/yourname
+- Link: streams.ctrl-alt-gg.hu: https://streams.ctrl-alt-gg.hu (QR code)
 
 ### `tournament_live`
 
 Layout `tournament`, source `live:bracket`, phases: tournament.
 
-> Data comes from the Bracket public dashboard API, see docs/integrations.md section 3. Live matches first, then up to four upcoming, then up to three finished with scores.
+> Data comes from the Bracket public dashboard API, see docs/integrations.md section 5. Live matches first, then up to four upcoming, then up to three finished with scores.
 
 **Magyar**
 
 - Title: **CS2-bajnokság**
-- Section labels: Most játszanak, Következő meccsek, Legutóbbi eredmények
+- Section labels: Most játszanak, Következő meccsek, Eredmények
 - Empty state: Most nincs futó meccs.
-- Footer: Teljes bracket és tabella: bracket.ctrl-alt-gg.hu
+- Footer: Teljes bracket: bracket.ctrl-alt-gg.hu
 
 **English**
 
 - Title: **CS2 tournament**
-- Section labels: Playing now, Coming up next, Latest results
+- Section labels: Playing now, Coming up next, Results
 - Empty state: No match is running right now.
-- Footer: Full bracket and standings: bracket.ctrl-alt-gg.hu
+- Footer: Full bracket: bracket.ctrl-alt-gg.hu
 
 ### `survive`
 
@@ -479,21 +509,19 @@ Layout `list`, source `static`, phases: late, morning.
 
 - Title: **Éjszakai túlélés**
 - Items:
-  1. Igyál vizet. Az energiaital nem víz.
-  1. 20-20-20: 20 percenként nézz 20 másodpercig 6 méterre.
-  1. Két meccsenként nyújtózz két percet: csukló, nyak, hát.
-  1. Éjfél után kapcsold be az éjszakai módot a monitoron.
-  1. Ha rosszul vagy, állj le. Szólj a szervezőknek.
+  1. Igyál vizet, nem csak energiaitalt
+  1. 20 percenként nézz messzire
+  1. Két meccsenként nyújtózz
+  1. Rosszul vagy? Állj le, szólj nekünk
 
 **English**
 
 - Title: **Surviving the night**
 - Items:
-  1. Drink water. Energy drinks are not water.
-  1. 20-20-20: every 20 minutes, look 6 metres away for 20 seconds.
-  1. Every second match, stretch for two minutes: wrists, neck, back.
-  1. After midnight, turn on night mode on your monitor.
-  1. If you feel unwell, stop playing. Tell the organizers.
+  1. Drink water, not just energy drinks
+  1. Every 20 minutes, look far away
+  1. Stretch every second match
+  1. Feeling unwell? Stop and tell us
 
 ### `getting_home`
 
@@ -503,23 +531,19 @@ Layout `list`, source `static`, phases: late, morning.
 
 - Title: **Hazajutás**
 - Items:
-  1. A helyszínen aludni nem lehet.
-  1. Éjszaka: 901, 909, 917, 918, 960 éjszakai busz, kb. 30-60 percenként.
-  1. Nappal: 9-es és 118-as busz, 17/19/41-es villamos, H5 HÉV (Filatorigát).
-  1. Megállók: Bécsi út / Vörösvári út (530 m), Búza utca (320 m), Bogdáni út (900 m).
-  1. Autóval: az épület felőli oldalon mindig ingyenes a parkolás, a túloldalon hétvégén.
-  1. Pontos indulások: BudapestGO.
+  1. A helyszínen aludni nem lehet
+  1. Éjjel: 901, 909, 917, 918, 960 busz
+  1. Nappal: 9, 118 busz, 17/19/41 villamos, H5
+  1. Indulások: BudapestGO
 
 **English**
 
 - Title: **Getting home**
 - Items:
-  1. Sleeping at the venue is not possible.
-  1. At night: night buses 901, 909, 917, 918 and 960, roughly every 30-60 minutes.
-  1. By day: buses 9 and 118, trams 17/19/41, the H5 suburban railway (Filatorigát).
-  1. Stops: Bécsi út / Vörösvári út (530 m), Búza utca (320 m), Bogdáni út (900 m).
-  1. By car: parking is always free on the building side and free on weekends across the street.
-  1. Exact departures: BudapestGO.
+  1. No sleeping at the venue
+  1. Night buses 901, 909, 917, 918, 960
+  1. By day: buses 9, 118, trams 17/19/41, H5
+  1. Departures: BudapestGO
 
 ### `safety`
 
@@ -529,23 +553,21 @@ Layout `list`, source `static`, phases: all.
 
 - Title: **Baj van?**
 - Items:
-  1. Életveszély: hívd a 112-t, aztán kiálts: STAFF!
-  1. Kisebb sérülés: szervezői asztal, van elsősegélydoboz.
-  1. Tűzjelzés: azonnal ki. A géped marad, te nem.
+  1. Életveszély: 112, aztán kiálts: STAFF
+  1. Elsősegély: szervezői asztal
+  1. Tűzjelzés: azonnal ki, a gép marad
   1. Gyülekező: {assembly_point}
-  1. Zaklatás, rossz érzés: szólj egy szervezőnek. Diszkréten kezeljük.
-  1. Talált tárgy: szervezői asztal.
+  1. Zaklatás, rossz érzés: szólj egy szervezőnek
 
 **English**
 
 - Title: **Emergency**
 - Items:
-  1. Life-threatening: call 112, then shout STAFF.
-  1. Minor injury: organizer desk, there is a first aid kit.
-  1. Fire alarm: leave immediately. The PC stays, you do not.
+  1. Emergency: call 112, then shout STAFF
+  1. First aid: organizer desk
+  1. Fire alarm: leave at once, the PC stays
   1. Assembly point: {assembly_point}
-  1. Harassment or feeling unsafe: tell an organizer. We handle it discreetly.
-  1. Lost and found: organizer desk.
+  1. Harassment or feeling unsafe: tell an organizer
 
 ### `social`
 
@@ -555,22 +577,20 @@ Layout `qr`, source `static`, phases: play, late, morning, teardown.
 
 - Title: **Kövess minket**
 - Items:
-  1. YouTube: @Ctrl-Alt-GG, felvételek és összefoglalók
-  1. Twitch: ctrl_alt_gg, élő a rendezvényről
+  1. YouTube: @Ctrl-Alt-GG
+  1. Twitch: ctrl_alt_gg
   1. Steam csoport: Ctrl-Alt-GG
-  1. Discord: discord.gg/TVJ5Xh2NC3
-  1. Képek a korábbi alkalmakról: www.ctrl-alt-gg.hu/recap/
+  1. Képek: www.ctrl-alt-gg.hu/recap
 - Link: Discord: https://discord.gg/TVJ5Xh2NC3 (QR code)
 
 **English**
 
 - Title: **Follow us**
 - Items:
-  1. YouTube: @Ctrl-Alt-GG, VODs and recaps
-  1. Twitch: ctrl_alt_gg, live from the event
+  1. YouTube: @Ctrl-Alt-GG
+  1. Twitch: ctrl_alt_gg
   1. Steam group: Ctrl-Alt-GG
-  1. Discord: discord.gg/TVJ5Xh2NC3
-  1. Photos from earlier episodes: www.ctrl-alt-gg.hu/recap/
+  1. Photos: www.ctrl-alt-gg.hu/recap
 - Link: Discord: https://discord.gg/TVJ5Xh2NC3 (QR code)
 
 ### `teardown`
@@ -581,13 +601,13 @@ Layout `hero`, source `static`, phases: teardown.
 
 - Kicker: Köszönjük!
 - Title: **GG, viszlát legközelebb**
-- Body: Pakolj össze, a szemetedet vidd a kukába, a kék kábelt hagyd az asztalon. Képek hamarosan: www.ctrl-alt-gg.hu/recap/
+- Body: Pakolj össze, a szemetet a kukába, a kék kábel marad. Képek: www.ctrl-alt-gg.hu/recap
 
 **English**
 
 - Kicker: Thank you!
 - Title: **GG, see you next time**
-- Body: Pack up, put your trash in the bins and leave the blue cable on the desk. Photos soon at www.ctrl-alt-gg.hu/recap/
+- Body: Pack up, trash in the bins, the blue cable stays. Photos: www.ctrl-alt-gg.hu/recap
 
 ## Schedule
 
@@ -647,6 +667,7 @@ Organizers activate these from the admin, filling the `{placeholders}`. `takeove
 
 ### Links
 
+- start: https://www.ctrl-alt-gg.hu
 - homepage: https://www.ctrl-alt-gg.hu
 - recap: https://www.ctrl-alt-gg.hu/recap/
 - schedule: https://www.ctrl-alt-gg.hu/schedule/

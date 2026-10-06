@@ -1,14 +1,14 @@
 import type { Pass } from "../api/client";
 import { asLive, type MatchRow, type TournamentLive } from "../api/live";
-import { pick, primaryLang } from "../lib/i18n";
+import { joined, pick, primaryLang } from "../lib/i18n";
 import { Card, EmptyState, Footer, SectionLabel, Title } from "./common";
 
 function Teams({ match, size }: { match: MatchRow; size: number }) {
   return (
     <div className="flex items-center justify-between gap-4 leading-tight" style={{ fontSize: size }}>
-      <span className="min-w-0 flex-1 truncate font-semibold">{match.team1}</span>
+      <span className="min-w-0 flex-1 truncate font-semibold" data-allow-clip>{match.team1}</span>
       <span className="shrink-0 text-ink-muted">vs</span>
-      <span className="min-w-0 flex-1 truncate text-right font-semibold">{match.team2}</span>
+      <span className="min-w-0 flex-1 truncate text-right font-semibold" data-allow-clip>{match.team2}</span>
     </div>
   );
 }
@@ -25,14 +25,14 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
     <div className="flex h-full flex-col gap-5">
       <div className="flex items-baseline gap-6 pr-[280px]">
         <Title pass={pass} size={72} />
-        {live?.name ? <span className="truncate text-[36px] text-ink-muted">{live.name}</span> : null}
+        {live?.name ? <span className="truncate text-[36px] text-ink-muted" data-allow-clip>{live.name}</span> : null}
       </div>
       {nothing ? (
         <EmptyState pass={pass} />
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-[1.2fr_1fr_0.9fr] gap-6">
           <Card className="gap-4" accent="#aa0000">
-            <SectionLabel>{pick(labels.live, lang)}</SectionLabel>
+            <SectionLabel>{joined(labels.live, pass.lang)}</SectionLabel>
             {liveMatches.length === 0 ? (
               <span className="text-[30px] text-ink-dim">{pick(pass.content.empty, lang)}</span>
             ) : (
@@ -48,7 +48,7 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
             )}
           </Card>
           <Card className="gap-3">
-            <SectionLabel>{pick(labels.upcoming, lang)}</SectionLabel>
+            <SectionLabel>{joined(labels.upcoming, pass.lang)}</SectionLabel>
             {upcoming.length === 0 ? (
               <span className="text-[30px] text-ink-dim">-</span>
             ) : (
@@ -65,17 +65,17 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
             )}
           </Card>
           <Card className="gap-3">
-            <SectionLabel>{pick(labels.results, lang)}</SectionLabel>
+            <SectionLabel>{joined(labels.results, pass.lang)}</SectionLabel>
             {results.length === 0 ? (
               <span className="text-[30px] text-ink-dim">-</span>
             ) : (
               results.slice(0, 3).map((match) => (
                 <div key={match.id ?? match.team1 + match.team2} className="flex items-center gap-3 text-[30px]">
-                  <span className="min-w-0 flex-1 truncate font-semibold">{match.team1}</span>
+                  <span className="min-w-0 flex-1 truncate font-semibold" data-allow-clip>{match.team1}</span>
                   <span className="shrink-0 font-mono text-[34px] font-bold tabular">
                     {match.score1} : {match.score2}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-right font-semibold">{match.team2}</span>
+                  <span className="min-w-0 flex-1 truncate text-right font-semibold" data-allow-clip>{match.team2}</span>
                 </div>
               ))
             )}

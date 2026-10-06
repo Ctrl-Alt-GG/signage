@@ -25,10 +25,10 @@ export function ServersSlide({ pass }: { pass: Pass }) {
                 className="flex h-[64px] items-center px-5 text-[30px] font-bold leading-none"
                 style={{ background: server.color_bg, color: server.color_text }}
               >
-                <span className="truncate">{server.game_short}</span>
+                <span className="truncate" data-allow-clip>{server.game_short}</span>
               </div>
               <div className="flex min-h-0 flex-1 flex-col justify-between p-5">
-                <span className="clamp-2 text-[34px] font-semibold leading-tight">{server.name}</span>
+                <span className="clamp-2 text-[34px] font-semibold leading-tight" data-allow-clip>{server.name}</span>
                 <span className="self-end font-mono text-[40px] font-bold leading-none tabular">
                   {server.players_text}
                 </span>

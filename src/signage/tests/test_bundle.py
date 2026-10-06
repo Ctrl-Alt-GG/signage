@@ -21,7 +21,7 @@ def test_play_phase_rotation(event, screen, at):
     _set_phase(event, "play")
     bundle = build_bundle(screen, at(1))
     slides = _slides(bundle)
-    assert "house_rules" in slides and "welcome" in slides and "spawn" in slides
+    assert "house_rules" in slides and "welcome" in slides and "start_here" in slides
     assert "getting_home" not in slides
     # live slides whose integration is not configured are dropped with a warning
     assert "servers" not in slides
@@ -32,12 +32,15 @@ def test_play_phase_rotation(event, screen, at):
 
 def test_alternate_and_stacked_expand_differently(event, screen, at):
     _set_phase(event, "play")
+    rules_slide = Slide.objects.get(pk="house_rules")
+    rules_slide.bilingual_mode = Slide.BilingualMode.ALTERNATE
+    rules_slide.save()
     passes = build_bundle(screen, at(1))["passes"]
     rules = [p for p in passes if p["slide"] == "house_rules"]
     assert [p["lang"] for p in rules] == ["hu", "en"]
     welcome = [p for p in passes if p["slide"] == "welcome"]
     assert [p["lang"] for p in welcome] == ["both"]
-    assert rules[0]["duration_ms"] == 20000
+    assert rules[0]["duration_ms"] == 18000
 
 
 def test_priority_order_and_screen_lists(event, screen, at):
@@ -48,7 +51,7 @@ def test_priority_order_and_screen_lists(event, screen, at):
     ScreenSlide.objects.create(screen=screen, slide=Slide.objects.get(pk="food"), order=1)
     ScreenSlide.objects.create(screen=screen, slide=Slide.objects.get(pk="voice"), order=0)
     passes = build_bundle(screen, at(1))["passes"]
-    assert [p["slide"] for p in passes if p["lang"] == "hu"] == ["voice", "food"]
+    assert [p["slide"] for p in passes] == ["voice", "food"]
 
 
 def test_unresolved_placeholder_drops_the_slide(event, screen, at):

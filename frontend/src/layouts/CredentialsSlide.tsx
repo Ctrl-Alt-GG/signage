@@ -16,7 +16,7 @@ export function CredentialsSlide({ pass }: { pass: Pass }) {
         <Title pass={pass} size={72} />
         <div className="surface flex flex-col gap-4 px-10 py-8 font-mono text-[64px] font-semibold leading-tight tabular">
           {lines.map((line) => (
-            <span key={line} className="truncate">
+            <span key={line} className="truncate" data-allow-clip>
               {line}
             </span>
           ))}

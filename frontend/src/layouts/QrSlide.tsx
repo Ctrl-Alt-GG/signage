@@ -24,7 +24,7 @@ export function QrSlide({ pass }: { pass: Pass }) {
         <Kicker pass={pass} />
         <Title pass={pass} size={72} />
         <div className="min-h-0 flex-1">
-          <Items items={pass.content.items} lang={pass.lang} size={38} availableHeight={300} columnWidth={1200} />
+          <Items items={pass.content.items} lang={pass.lang} size={38} availableHeight={290} columnWidth={1200} />
         </div>
         <Footer pass={pass} />
       </div>

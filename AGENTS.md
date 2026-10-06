@@ -131,7 +131,7 @@ Checks that must pass before a commit:
 uv run ruff check . && uv run ruff format --check .
 uv run python scripts/render_content.py --check
 uv run python manage.py check && uv run python manage.py makemigrations --check --dry-run
-uv run pytest
+uv run pytest            # includes Django checks, migrations, content and OpenAPI sync
 (cd frontend && pnpm typecheck && pnpm test && pnpm build)
 uv run python manage.py spectacular --file docs/openapi.yaml --validate   # then regenerate the TS types if it changed
 (cd frontend && pnpm openapi)

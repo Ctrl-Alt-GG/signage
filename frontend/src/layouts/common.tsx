@@ -3,16 +3,15 @@ import type { ReactNode } from "react";
 
 import type { Pass, PassLang, SlideItem } from "../api/client";
 import { Markdown } from "../components/Markdown";
-import { Text, UI, pick, primaryLang } from "../lib/i18n";
+import { Text, UI, joined, pick, primaryLang } from "../lib/i18n";
 
 export function Kicker({ pass }: { pass: Pass }) {
+  const text = joined(pass.content.kicker, pass.lang);
+  if (!text) return null;
   return (
-    <Text
-      text={pass.content.kicker}
-      lang={primaryLang(pass.lang)}
-      as="p"
-      className="text-[32px] font-semibold uppercase leading-tight tracking-[0.12em] text-ink-muted"
-    />
+    <p className="text-[30px] font-semibold uppercase leading-tight tracking-[0.12em] text-ink-muted">
+      {text}
+    </p>
   );
 }
 
@@ -61,10 +60,10 @@ export function Body({ pass, size = 44 }: { pass: Pass; size?: number }) {
 
 export function Footer({ pass, stale = false }: { pass: Pass; stale?: boolean }) {
   const lang = primaryLang(pass.lang);
-  const text = pick(pass.content.footer, lang);
+  const text = joined(pass.content.footer, pass.lang);
   if (!text && !stale) return null;
   return (
-    <p className="mt-auto flex items-center gap-4 text-[30px] font-medium leading-tight text-ink-muted">
+    <p className="mt-auto flex items-center gap-4 text-[28px] font-medium leading-tight text-ink-muted">
       {text ? <Markdown text={text} /> : null}
       {stale ? (
         <span className="badge badge-outline h-[36px] border-ink-dim px-3 text-[22px] text-ink-dim">
@@ -91,19 +90,39 @@ export function ItemIcon({ name, index, size = 36 }: { name?: string; index: num
 }
 
 /** Pick a font size so the estimated line count fits the available height. Lines are
-    estimated from the text length and the column width at the candidate size. */
+    estimated from the text length and the column width at the candidate size; English
+    lines (when stacked) are counted at the secondary scale. */
+const EN_SCALE = 0.72;
+const LINE = 1.3;
+
+function estimateLines(text: string, size: number, columnWidth: number): number {
+  if (!text) return 0;
+  const charsPerLine = Math.max(10, Math.floor(columnWidth / (size * 0.52)));
+  return Math.ceil(text.length / charsPerLine);
+}
+
 export function fitItemSize(
-  texts: string[],
+  items: SlideItem[],
+  lang: PassLang,
   availableHeight: number,
   columnWidth: number,
   max = 40,
-  min = 28,
+  min = 26,
 ): number {
   for (let size = max; size >= min; size -= 2) {
-    const charsPerLine = Math.max(10, Math.floor(columnWidth / (size * 0.5)));
-    const lines = texts.reduce((sum, text) => sum + Math.min(2, Math.ceil(text.length / charsPerLine)), 0);
-    const gap = 0.35 * size * Math.max(texts.length - 1, 0);
-    if (lines * size * 1.3 + gap <= availableHeight) return size;
+    let height = 0;
+    for (const item of items) {
+      if (lang === "both") {
+        height += estimateLines(item.hu, size, columnWidth) * size * LINE;
+        if (item.en && item.en !== item.hu) {
+          height += estimateLines(item.en, size * EN_SCALE, columnWidth) * size * EN_SCALE * LINE;
+        }
+      } else {
+        height += estimateLines(pick(item, lang), size, columnWidth) * size * LINE;
+      }
+    }
+    height += 0.45 * size * Math.max(items.length - 1, 0);
+    if (height <= availableHeight) return size;
   }
   return min;
 }
@@ -124,33 +143,26 @@ export function Items({
   className?: string;
 }) {
   const shown = items.slice(0, 6);
-  const texts = shown.map((item) => (lang === "en" ? item.en || item.hu : item.hu));
-  const stackedExtra = lang === "both" ? shown.map((item) => item.en).filter(Boolean) : [];
-  const fitted = fitItemSize(
-    [...texts, ...stackedExtra.map((text) => text.slice(0, Math.ceil(text.length * 0.7)))],
-    availableHeight,
-    columnWidth,
-    size,
-  );
+  const fitted = fitItemSize(shown, lang, availableHeight, columnWidth, size);
   return (
-    <ol className={`flex h-full flex-col justify-evenly ${className}`} style={{ gap: fitted * 0.2 }}>
+    <ol className={`flex h-full flex-col justify-evenly ${className}`} style={{ gap: fitted * 0.25 }}>
       {shown.map((item, index) => (
         <li key={index} className="flex items-start gap-4 leading-[1.3]" style={{ fontSize: fitted }}>
           <ItemIcon name={item.icon} index={index} size={fitted * 0.9} />
           <span className="min-w-0 font-medium">
             {lang === "both" ? (
               <>
-                <span className="clamp-2 block">
+                <span className="block">
                   <Markdown text={item.hu} />
                 </span>
                 {item.en && item.en !== item.hu ? (
-                  <span className="clamp-2 block text-[0.7em] text-ink-muted">
+                  <span className="block text-[0.72em] text-ink-muted">
                     <Markdown text={item.en} />
                   </span>
                 ) : null}
               </>
             ) : (
-              <span className="clamp-2 block">
+              <span className="block">
                 <Markdown text={pick(item, lang)} />
               </span>
             )}
@@ -162,12 +174,20 @@ export function Items({
 }
 
 export function EmptyState({ pass }: { pass: Pass }) {
-  const lang = primaryLang(pass.lang);
+  const empty = pass.content.empty;
+  const hu = pick(empty, "hu") || UI.hu.nothing;
+  const en = empty?.en && empty.en !== empty.hu ? empty.en : UI.en.nothing;
+  if (pass.lang === "en") {
+    return (
+      <div className="flex flex-1 items-center text-ink-muted">
+        <p className="text-[44px] font-medium">{pick(empty, "en") || UI.en.nothing}</p>
+      </div>
+    );
+  }
   return (
-    <div className="flex flex-1 items-center">
-      <p className="text-[44px] font-medium text-ink-muted">
-        {pick(pass.content.empty, lang) || UI[lang].nothing}
-      </p>
+    <div className="flex flex-1 flex-col justify-center gap-2 text-ink-muted">
+      <p className="text-[44px] font-medium">{hu}</p>
+      {pass.lang === "both" ? <p className="text-[32px]">{en}</p> : null}
     </div>
   );
 }
@@ -199,7 +219,7 @@ export function typeAccent(type: string): string {
 
 export function SectionLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="text-[28px] font-semibold uppercase leading-none tracking-[0.12em] text-ink-muted">
+    <p className="text-[26px] font-semibold uppercase leading-none tracking-[0.12em] text-ink-muted">
       {children}
     </p>
   );

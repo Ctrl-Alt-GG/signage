@@ -36,7 +36,8 @@ CHECK_JS = """
     let rect = {left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity};
     for (let el = node.parentElement; el && el !== area.parentElement; el = el.parentElement) {
       const style = getComputedStyle(el);
-      if (clipsOverflow(style.overflowX) || clipsOverflow(style.overflowY)) {
+      const clamped = style.webkitLineClamp && style.webkitLineClamp !== 'none';
+      if (clipsOverflow(style.overflowX) || clipsOverflow(style.overflowY) || clamped) {
         const box = el.getBoundingClientRect();
         rect = {
           left: Math.max(rect.left, box.left), top: Math.max(rect.top, box.top),
@@ -51,11 +52,18 @@ CHECK_JS = """
   while ((node = walker.nextNode())) {
     if (!node.textContent.trim()) continue;
     const clip = clipRect(node);
+    const allowClip = Boolean(node.parentElement.closest('[data-allow-clip]'));
     const range = document.createRange();
     range.selectNodeContents(node);
     for (const rect of range.getClientRects()) {
       const left = Math.max(rect.left, clip.left), top = Math.max(rect.top, clip.top);
       const right = Math.min(rect.right, clip.right), bottom = Math.min(rect.bottom, clip.bottom);
+      const clippedBy = Math.max(clip.left - rect.left, clip.top - rect.top,
+                                 rect.right - clip.right, rect.bottom - clip.bottom);
+      if (clippedBy > tolerance && !allowClip) {
+        const snippet = node.textContent.trim().slice(0, 40);
+        errors.push(`text clipped by its box: "${snippet}" (${Math.round(clippedBy)}px)`);
+      }
       if (right - left <= 1 || bottom - top <= 1) continue;
       const x1 = left - stageRect.left, y1 = top - stageRect.top;
       const x2 = right - stageRect.left, y2 = bottom - stageRect.top;

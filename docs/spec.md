@@ -503,23 +503,21 @@ rules `E F I N UP B SIM DJ RUF`, `DJ001` ignored, migrations exempt from
 `markdown-it-py`, `pyyaml`, `psycopg[binary]`, `gunicorn`. Dev group:
 `ruff`, `pytest`, `pytest-django`, `playwright`.
 
-`.github/workflows/ci.yml` (on pull requests and pushes to `main`):
+`.github/workflows/pipeline.yml` is the one pipeline: pull requests, pushes
+to `main`, `v*` tags and manual runs. Every step is a GitHub Action except
+the two commands no action exists for. `permissions` is `contents: read`
+at the top and widened only on the image job.
 
-```
-uv sync --frozen
-uv run ruff check .
-uv run ruff format --check .
-uv run python scripts/render_content.py --check
-uv run python manage.py check
-uv run python manage.py makemigrations --check --dry-run
-uv run python manage.py tailwind build
-uv run pytest
-```
+| Job | Steps |
+|---|---|
+| `python-lint` | `actions/checkout`, `astral-sh/ruff-action` (`check .`), `astral-sh/ruff-action` (`format --check .`) |
+| `frontend` | `actions/checkout`, `pnpm/action-setup`, `actions/setup-node` (pnpm cache), one run step (`pnpm install --frozen-lockfile && pnpm typecheck && pnpm test && pnpm build`), `actions/upload-artifact` with `frontend/dist` |
+| `backend` | `actions/checkout`, `actions/download-artifact` (the built frontend, so the display page test runs), `astral-sh/setup-uv` (cache), one run step (`uv run --frozen pytest`). The suite includes `tests/test_project_health.py`: Django system checks, migrations current, content YAML and `docs/content.md` in sync, `docs/openapi.yaml` matches the serializers |
+| `image` | `actions/checkout`, `docker/setup-buildx-action`, `docker/login-action` (not on pull requests), `docker/metadata-action` (tags: `latest` on `main`, semver on tags, `pr-N`, `sha-...`), `docker/build-push-action` (push except on pull requests, provenance, GHA cache), `actions/attest-build-provenance` (not on pull requests). Permissions: `contents: read`, `packages: write`, `id-token: write`, `attestations: write`, `artifact-metadata: write` |
 
-`.github/workflows/publish.yml` (on `v*` tags): build
-`docker/web.Dockerfile`, push `ghcr.io/<owner>/signage-web:<tag>` and
-`:latest`, attach provenance, like the Streams workflow with a single
-component.
+The image is `ghcr.io/ctrl-alt-gg/signage-web`. Action versions are the
+newest major tags at the time of writing; Dependabot or Renovate should
+keep them current.
 
 ## 14. Docker, Compose, kiosk
 

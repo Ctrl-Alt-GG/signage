@@ -78,6 +78,8 @@ wifi:
     en: "Play on the cable. The Wi-Fi is for your phone."
 
 links:
+  # On the venue network the start page is the homepage itself.
+  start: "https://www.ctrl-alt-gg.hu"
   homepage: "https://www.ctrl-alt-gg.hu"
   recap: "https://www.ctrl-alt-gg.hu/recap/"
   schedule: "https://www.ctrl-alt-gg.hu/schedule/"
