@@ -226,3 +226,6 @@ __marimo__/
 /.venv/
 /.env
 /docs/openapi.yaml.bak
+
+# The Python template above ignores lib/; the frontend keeps its helpers there.
+!/frontend/src/lib/
