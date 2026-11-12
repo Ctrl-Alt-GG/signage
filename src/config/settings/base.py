@@ -4,8 +4,6 @@ from pathlib import Path
 
 import environ
 
-from config.storage import object_storage
-
 BASE_DIR = Path(__file__).resolve().parents[3]
 
 env = environ.FileAwareEnv()
@@ -36,7 +34,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.locale.LocaleMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -81,29 +78,20 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
-LANGUAGE_CODE = "hu"
-LANGUAGES = [("hu", "Magyar"), ("en", "English")]
-LOCALE_PATHS = [BASE_DIR / "src" / "locale"]
+# The admin is in English throughout. The project has no translations of its own, so
+# following the browser's language would mix Django's Hungarian with English labels.
+LANGUAGE_CODE = "en"
 TIME_ZONE = env("TIME_ZONE", default="Europe/Budapest")
 USE_I18N = True
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Files. With STORAGE_ENDPOINT_URL set, static files and uploads live in an S3 bucket
-# (MinIO in the Compose stack) and browsers load them from STORAGE_PUBLIC_URL; without it
-# the local filesystem under data/ is used and runserver serves them (development).
-STORAGE = object_storage(
-    endpoint_url=env("STORAGE_ENDPOINT_URL", default=""),
-    public_url=env("STORAGE_PUBLIC_URL", default=""),
-    bucket=env("STORAGE_BUCKET", default="signage"),
-    access_key=env("STORAGE_ACCESS_KEY", default=""),
-    secret_key=env("STORAGE_SECRET_KEY", default=""),
-    region=env("STORAGE_REGION", default="us-east-1"),
-)
-STORAGES = STORAGE.storages
-STATIC_URL = STORAGE.static_url
-MEDIA_URL = STORAGE.media_url
-STATIC_ROOT = BASE_DIR / "data" / "staticfiles"
+# Files. The admin's static files are collected when the frontend image is built and nginx
+# serves them under /static/; runserver serves them in development. The only upload is the
+# background artwork. It is kept on disk under MEDIA_ROOT and reaches browsers through the
+# API, so nothing under MEDIA_ROOT is served directly.
+STATIC_URL = "/static/"
+STATIC_ROOT = Path(env("STATIC_ROOT", default=str(BASE_DIR / "data" / "staticfiles")))
 MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "data" / "media")))
 
 # Where the display frontend is reachable from a browser, for the links in the admin.
@@ -131,10 +119,15 @@ SPECTACULAR_SETTINGS = {
     "COMPONENT_SPLIT_REQUEST": True,
 }
 
-SIGNAGE_DEFAULT_SCREEN = env("SIGNAGE_DEFAULT_SCREEN", default="main")
 SIGNAGE_CONTENT_DIR = BASE_DIR / "content"
 SIGNAGE_LAST_GOOD_SECONDS = env.int("SIGNAGE_LAST_GOOD_SECONDS", default=3600)
+SIGNAGE_LOCK_DIR = env("SIGNAGE_LOCK_DIR", default="/tmp/signage-refresh-locks")
 SIGNAGE_THUMBNAIL_CACHE_SECONDS = env.int("SIGNAGE_THUMBNAIL_CACHE_SECONDS", default=20)
+# Every screen polls its bundle. Building it once a second at most keeps a room full of
+# screens, or someone hammering the anonymous API, from costing more than one build.
+SIGNAGE_BUNDLE_CACHE_SECONDS = env.float("SIGNAGE_BUNDLE_CACHE_SECONDS", default=1.0)
+# The largest YAML file the admin import reads.
+SIGNAGE_IMPORT_MAX_BYTES = env.int("SIGNAGE_IMPORT_MAX_BYTES", default=1_000_000)
 
 LOGGING = {
     "version": 1,

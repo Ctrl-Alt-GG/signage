@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.management.base import BaseCommand, CommandError
 
 from signage.content import lint
@@ -25,7 +26,15 @@ class Command(BaseCommand):
         parser.add_argument(
             "--overwrite",
             action="store_true",
-            help="Replace rows that were edited in the admin, including the event.",
+            help=(
+                "Replace rows that were edited in the admin, including the event, and bring "
+                "back rows that were deleted there."
+            ),
+        )
+        parser.add_argument(
+            "--keep-missing",
+            action="store_true",
+            help="Keep seeded rows that are no longer in the YAML instead of removing them.",
         )
 
     def handle(self, *args, **options):
@@ -37,9 +46,16 @@ class Command(BaseCommand):
                 directory,
                 only=set(options["only"] or []) or None,
                 overwrite=options["overwrite"],
+                prune=not options["keep_missing"],
             )
         except lint.LintError as error:
             raise CommandError(f"content lint failed: {error}") from error
+        except ValidationError as error:
+            raise CommandError(f"content does not fit the database: {error}") from error
+        for item in report.removed:
+            self.stdout.write(self.style.WARNING(f"removed {item}"))
         for item in report.skipped:
             self.stdout.write(self.style.WARNING(f"skipped {item}"))
+        for warning in report.warnings:
+            self.stdout.write(self.style.WARNING(warning))
         self.stdout.write(self.style.SUCCESS(report.summary()))

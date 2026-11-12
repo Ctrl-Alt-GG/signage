@@ -3,9 +3,10 @@ edited through the Django admin; `manage.py loadcontent` only seeds it from cont
 
 from __future__ import annotations
 
-import re
+import hashlib
 import uuid
 from datetime import datetime, timedelta
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from django.core.exceptions import ValidationError
@@ -15,9 +16,17 @@ from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from solo.models import SingletonModel
 
+from signage.content.lint import EVENT_PLACEHOLDERS, PLACEHOLDER_RE, unknown_placeholders
+
 LANGS = ("hu", "en")
-PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
 HEX_COLOR = RegexValidator(r"^#[0-9a-fA-F]{6}$", _("Use a six digit hex colour like #aa0000."))
+
+
+def unknown_placeholder_message(names: list[str]) -> str:
+    return _("Unknown placeholder: %(names)s. The event provides: %(known)s.") % {
+        "names": ", ".join(f"{{{name}}}" for name in names),
+        "known": ", ".join(EVENT_PLACEHOLDERS),
+    }
 
 
 class TimeStamped(models.Model):
@@ -49,9 +58,47 @@ class SeedOwned(models.Model):
     later import leaves them alone unless overwrite is requested."""
 
     origin = models.CharField(max_length=5, choices=Origin, default=Origin.SEED)
+    # The field the YAML import matches a row on.
+    seed_key_field = "key"
 
     class Meta:
         abstract = True
+
+    @property
+    def seed_key(self) -> str:
+        return str(getattr(self, self.seed_key_field))
+
+
+class RemovedSeed(models.Model):
+    """A seeded row that an organizer deleted in the admin. The import runs on every start
+    and would bring the row straight back; this remembers the decision. Deleting the entry,
+    or importing with overwrite, lets the row return."""
+
+    model = models.CharField(max_length=60)
+    key = models.CharField(max_length=100)
+    removed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("model", "key")
+        constraints = (
+            models.UniqueConstraint(fields=("model", "key"), name="signage_removedseed_unique"),
+        )
+        verbose_name = _("Removed seed row")
+
+    def __str__(self) -> str:
+        return f"{self.model} {self.key}"
+
+    @classmethod
+    def remember(cls, row: SeedOwned) -> None:
+        cls.objects.get_or_create(model=row._meta.model_name, key=row.seed_key)
+
+    @classmethod
+    def forget(cls, model: type[SeedOwned], key: str) -> None:
+        cls.objects.filter(model=model._meta.model_name, key=key).delete()
+
+    @classmethod
+    def keys_for(cls, model: type[SeedOwned]) -> set[str]:
+        return set(cls.objects.filter(model=model._meta.model_name).values_list("key", flat=True))
 
 
 class Phase(TimeStamped, SeedOwned, Bilingual):
@@ -144,6 +191,7 @@ class Event(SingletonModel, Bilingual):
             raise ValidationError({"organizers": _("Organizers must be a list of names.")})
 
     def placeholder_values(self, lang: str) -> dict[str, str]:
+        """What slides and announcement templates get for the names in `EVENT_PLACEHOLDERS`."""
         local_start = self.starts_at.astimezone(self.tz)
         if lang == "hu":
             date_text = local_start.strftime("%Y. %m. %d.")
@@ -172,6 +220,12 @@ def _validate_svg(upload) -> None:
         raise ValidationError(_("The file does not look like an SVG document."))
 
 
+# The display scales the stage to the screen, so a stage or safe area without a size would
+# scale without bound. These are far below anything a screen has, and above zero.
+MIN_STAGE_SIDE = MinValueValidator(160)
+MIN_SAFE_SIDE = MinValueValidator(80)
+
+
 class DisplaySettings(SingletonModel):
     background = models.FileField(
         upload_to="background/",
@@ -180,12 +234,12 @@ class DisplaySettings(SingletonModel):
         help_text=_("1920x1080 SVG. Leave empty to use the bundled artwork."),
     )
     default_screen_slug = models.SlugField(default="main")
-    stage_width = models.PositiveSmallIntegerField(default=1920)
-    stage_height = models.PositiveSmallIntegerField(default=1080)
+    stage_width = models.PositiveSmallIntegerField(default=1920, validators=[MIN_STAGE_SIDE])
+    stage_height = models.PositiveSmallIntegerField(default=1080, validators=[MIN_STAGE_SIDE])
     safe_x = models.PositiveSmallIntegerField(default=96)
     safe_y = models.PositiveSmallIntegerField(default=204)
-    safe_width = models.PositiveSmallIntegerField(default=1728)
-    safe_height = models.PositiveSmallIntegerField(default=564)
+    safe_width = models.PositiveSmallIntegerField(default=1728, validators=[MIN_SAFE_SIDE])
+    safe_height = models.PositiveSmallIntegerField(default=564, validators=[MIN_SAFE_SIDE])
 
     class Meta:
         verbose_name = _("Display settings")
@@ -193,8 +247,23 @@ class DisplaySettings(SingletonModel):
     def __str__(self) -> str:
         return "Display settings"
 
+    def clean(self) -> None:
+        super().clean()
+        if self.safe_x + self.safe_width > self.stage_width:
+            raise ValidationError({"safe_width": _("The safe area is wider than the stage.")})
+        if self.safe_y + self.safe_height > self.stage_height:
+            raise ValidationError({"safe_height": _("The safe area is taller than the stage.")})
+
+    @property
+    def background_version(self) -> str:
+        """Changes whenever another background is uploaded, so that screens which already
+        show one fetch the new file."""
+        return self.background.name.rsplit("/", 1)[-1] if self.background else "bundled"
+
 
 class Game(TimeStamped, SeedOwned):
+    seed_key_field = "slug"
+
     slug = models.SlugField(unique=True)
     name = models.CharField(max_length=100)
     short = models.CharField(max_length=40)
@@ -287,6 +356,18 @@ class Slide(TimeStamped, SeedOwned, Bilingual):
         ALTERNATE = "alternate", _("Hungarian pass, then English pass")
         STACKED = "stacked", _("Both languages on one pass")
 
+    # Everything that may hold a {placeholder}.
+    TEXT_FIELDS = (
+        "kicker",
+        "title",
+        "body",
+        "footer",
+        "empty",
+        "column1_title",
+        "column2_title",
+        "link_label",
+    )
+
     key = models.SlugField(primary_key=True, max_length=60)
     layout = models.CharField(max_length=12, choices=Layout)
     source = models.CharField(max_length=16, choices=Source, default=Source.STATIC)
@@ -356,11 +437,20 @@ class Slide(TimeStamped, SeedOwned, Bilingual):
                 raise ValidationError(
                     {"labels": _("Label %(key)s needs hu and en.") % {"key": key}}
                 )
+        errors = {}
+        for field in self.TEXT_FIELDS:
+            for lang in LANGS:
+                name = f"{field}_{lang}"
+                if unknown := unknown_placeholders(getattr(self, name)):
+                    errors[name] = unknown_placeholder_message(unknown)
+        if errors:
+            raise ValidationError(errors)
 
     def in_phase(self, phase: Phase | None) -> bool:
         if self.all_phases or phase is None:
             return True
-        return self.phases.filter(pk=phase.pk).exists()
+        # Not a filter: the phases are prefetched when the rotation is built.
+        return any(candidate.pk == phase.pk for candidate in self.phases.all())
 
     def is_valid_at(self, now: datetime) -> bool:
         if self.valid_from and now < self.valid_from:
@@ -383,6 +473,16 @@ class SlideItem(models.Model):
 
     def __str__(self) -> str:
         return self.text_hu[:40]
+
+    def clean(self) -> None:
+        super().clean()
+        errors = {
+            name: unknown_placeholder_message(unknown)
+            for name in ("text_hu", "text_en")
+            if (unknown := unknown_placeholders(getattr(self, name)))
+        }
+        if errors:
+            raise ValidationError(errors)
 
 
 class Screen(TimeStamped):
@@ -492,6 +592,18 @@ class Announcement(TimeStamped, Bilingual):
         return self.ends_at is None or self.ends_at > now
 
 
+def validate_upstream_url(value: str) -> None:
+    """An http or https address. Unlike a public URL it may name a host without a dot: the
+    upstream systems are often reached by a name that only exists on the venue network."""
+    try:
+        parts = urlsplit(value)
+        valid = parts.scheme in ("http", "https") and bool(parts.hostname) and parts.port != 0
+    except ValueError:
+        valid = False
+    if not valid or any(character.isspace() for character in value):
+        raise ValidationError(_("Enter an address that starts with http:// or https://."))
+
+
 class Integration(TimeStamped):
     """Connection settings for one upstream system. One row per kind, created by the
     initial migration; organizers fill in the URL and credentials in the admin."""
@@ -509,10 +621,13 @@ class Integration(TimeStamped):
 
     kind = models.CharField(max_length=10, choices=Kind, unique=True)
     enabled = models.BooleanField(default=False)
-    base_url = models.URLField(
+    base_url = models.CharField(
+        max_length=200,
         blank=True,
+        validators=[validate_upstream_url],
         help_text=_(
-            "API root without a trailing slash, for example https://servers.ctrl-alt-gg.hu/api"
+            "API root without a trailing slash, for example https://servers.ctrl-alt-gg.hu/api. "
+            "An address inside the venue network works too, such as http://streams-web:8000/api/v1."
         ),
     )
     auth_type = models.CharField(max_length=6, choices=Auth, default=Auth.NONE)
@@ -524,13 +639,23 @@ class Integration(TimeStamped):
     ca_bundle = models.CharField(
         max_length=300, blank=True, help_text=_("Path to a CA bundle for a venue certificate.")
     )
-    connect_timeout = models.FloatField(default=2.0)
-    read_timeout = models.FloatField(default=4.0)
+    # Every screen waits for these when an upstream is slow, so they stay short.
+    connect_timeout = models.FloatField(
+        default=2.0, validators=[MinValueValidator(0.1), MaxValueValidator(30)]
+    )
+    read_timeout = models.FloatField(
+        default=4.0, validators=[MinValueValidator(0.1), MaxValueValidator(30)]
+    )
     cache_seconds = models.PositiveSmallIntegerField(
         default=15, validators=[MinValueValidator(1), MaxValueValidator(600)]
     )
     tournament_id = models.PositiveIntegerField(
-        null=True, blank=True, help_text=_("Bracket only. Empty picks the first open tournament.")
+        null=True,
+        blank=True,
+        help_text=_(
+            "Bracket only, and required for it: the number in the tournament's address in "
+            "Bracket, as in /tournaments/12. The screens show this tournament and no other."
+        ),
     )
     mirror_announcement = models.BooleanField(
         default=False, help_text=_("Projectile only. Show its announcement as an info bar.")
@@ -544,7 +669,10 @@ class Integration(TimeStamped):
 
     @property
     def is_configured(self) -> bool:
-        return self.enabled and bool(self.base_url)
+        if not (self.enabled and self.base_url):
+            return False
+        # Which tournament goes on the venue's screens is never left to a guess.
+        return self.kind != self.Kind.BRACKET or self.tournament_id is not None
 
     def clean(self) -> None:
         super().clean()
@@ -554,6 +682,26 @@ class Integration(TimeStamped):
             raise ValidationError(_("Basic authentication needs a username and a password."))
         if self.auth_type in (self.Auth.BEARER, self.Auth.HEADER) and not self.token:
             raise ValidationError({"token": _("This authentication type needs a token.")})
+        if self.kind == self.Kind.BRACKET and self.enabled and self.tournament_id is None:
+            raise ValidationError(
+                {"tournament_id": _("Choose the tournament the screens should show.")}
+            )
+
+    @property
+    def fingerprint(self) -> str:
+        """Identifies what is being asked of the upstream. Cached answers are kept under it,
+        so an answer from before the address, the tournament or the login changed is never
+        served for the new settings."""
+        parts = (
+            self.base_url,
+            self.auth_type,
+            self.username,
+            self.password,
+            self.token,
+            self.header_name,
+            str(self.tournament_id),
+        )
+        return hashlib.sha256("\x1f".join(parts).encode()).hexdigest()[:16]
 
     def auth_headers(self) -> dict[str, str]:
         if self.auth_type == self.Auth.BEARER:

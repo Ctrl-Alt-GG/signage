@@ -1,11 +1,14 @@
 import type { Pass } from "../api/client";
 import { asLive, type StreamsLive } from "../api/live";
-import { ui } from "../lib/i18n";
+import { ui, uiMore } from "../lib/i18n";
 import { EmptyState, Footer, Title } from "./common";
+
+const MAX_TILES = 4;
 
 export function StreamsSlide({ pass }: { pass: Pass }) {
   const live = asLive<StreamsLive>(pass.live);
   const channels = live?.live ?? [];
+  const more = Math.max(channels.length - MAX_TILES, 0);
   return (
     <div className="flex h-full flex-col gap-5">
       <div className="pr-[280px]">
@@ -15,7 +18,7 @@ export function StreamsSlide({ pass }: { pass: Pass }) {
         <EmptyState pass={pass} />
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-4 gap-6">
-          {channels.slice(0, 4).map((channel) => (
+          {channels.slice(0, MAX_TILES).map((channel) => (
             <div key={channel.id} className="surface flex min-h-0 flex-col overflow-hidden p-0">
               <div className="aspect-video w-full bg-key-top">
                 {channel.thumbnail_url ? (
@@ -35,7 +38,12 @@ export function StreamsSlide({ pass }: { pass: Pass }) {
           ))}
         </div>
       )}
-      <Footer pass={pass} stale={Boolean(live?.stale)} />
+      <div className="flex items-center gap-6">
+        <Footer pass={pass} stale={Boolean(live?.stale)} />
+        {more > 0 ? (
+          <span className="text-[30px] text-ink-muted">{uiMore(more, pass.lang, "moreStreams")}</span>
+        ) : null}
+      </div>
     </div>
   );
 }

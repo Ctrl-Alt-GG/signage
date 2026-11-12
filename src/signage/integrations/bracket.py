@@ -1,5 +1,6 @@
-"""Bracket: the tournament system. Public endpoints for open tournaments; match status
-is derived the way Bracket's own frontend does it."""
+"""Bracket: the tournament system. Reads one tournament, chosen in the admin, from the
+public endpoints. Match status follows Bracket's own pages, so a screen and a phone never
+disagree about what is being played."""
 
 from __future__ import annotations
 
@@ -7,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import httpx
 from django.utils.dateparse import parse_datetime
 
 from signage.integrations.base import IntegrationClient
@@ -25,27 +27,36 @@ def _parse(value: str | None) -> datetime | None:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def _team_name(stage_input: dict[str, Any] | None, teams: dict[int, str]) -> str:
-    if not stage_input:
-        return "TBD"
-    team = stage_input.get("team") or {}
-    if team.get("name"):
-        return str(team["name"])
-    team_id = stage_input.get("team_id")
-    return teams.get(team_id, "TBD") if team_id is not None else "TBD"
+def _team_name(stage_input: dict[str, Any] | None) -> str:
+    """The team in a slot. A slot that waits for the outcome of an earlier stage has none."""
+    team = (stage_input or {}).get("team") or {}
+    return str(team["name"]) if team.get("name") else ""
+
+
+def is_played(match: dict[str, Any]) -> bool:
+    played = match.get("played")
+    if played is None:
+        # A Bracket from before it could tell a 0-0 result from a match without one.
+        return bool(match.get("stage_item_input1_score") or match.get("stage_item_input2_score"))
+    return bool(played)
 
 
 def match_status(match: dict[str, Any], now: datetime) -> str:
-    if match.get("stage_item_input1_score") or match.get("stage_item_input2_score"):
+    """`finished` with a result, `waiting` until both teams are known, `scheduled` before
+    the planned start. After that the match is `live` during its planned time and
+    `awaiting` its result from then on: matches run over, and one that has started is not
+    upcoming again."""
+    if is_played(match):
         return "finished"
-    if match.get("stage_item_input1") is None or match.get("stage_item_input2") is None:
+    if not (
+        _team_name(match.get("stage_item_input1")) and _team_name(match.get("stage_item_input2"))
+    ):
         return "waiting"
     start = _parse(match.get("start_time"))
-    if start is not None:
-        duration = timedelta(minutes=int(match.get("duration_minutes") or 0))
-        if start <= now < start + duration:
-            return "live"
-    return "scheduled"
+    if start is None or now < start:
+        return "scheduled"
+    duration = timedelta(minutes=int(match.get("duration_minutes") or 0))
+    return "live" if now < start + duration else "awaiting"
 
 
 def flatten_matches(stages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -53,6 +64,10 @@ def flatten_matches(stages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     for stage in stages:
         for item in stage.get("stage_items") or []:
             for round_ in item.get("rounds") or []:
+                # Organizers see drafts of a round before they publish it. The public
+                # endpoints leave them out, and so does this, whatever the answer holds.
+                if round_.get("is_draft"):
+                    continue
                 for match in round_.get("matches") or []:
                     matches.append({**match, "_round": round_.get("name") or ""})
     return matches
@@ -61,59 +76,64 @@ def flatten_matches(stages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def parse_tournament(
     tournament: dict[str, Any],
     stages: list[dict[str, Any]],
-    teams_payload: list[dict[str, Any]],
     now: datetime,
     tz: ZoneInfo,
 ) -> dict[str, Any]:
-    teams = {int(t["id"]): str(t.get("name") or "?") for t in teams_payload if "id" in t}
+    far_future = datetime.max.replace(tzinfo=UTC)
     rows = []
     for match in flatten_matches(stages):
         start = _parse(match.get("start_time"))
         rows.append(
             {
                 "id": match.get("id"),
-                "team1": _team_name(match.get("stage_item_input1"), teams),
-                "team2": _team_name(match.get("stage_item_input2"), teams),
+                "team1": _team_name(match.get("stage_item_input1")) or "TBD",
+                "team2": _team_name(match.get("stage_item_input2")) or "TBD",
                 "score1": match.get("stage_item_input1_score") or 0,
                 "score2": match.get("stage_item_input2_score") or 0,
                 "start_local": start.astimezone(tz).strftime("%H:%M") if start else "",
                 "round": match["_round"],
                 "status": match_status(match, now),
-                "_start": start,
+                "_start": start or far_future,
             }
         )
-    far_future = datetime.max.replace(tzinfo=UTC)
-    rows.sort(key=lambda row: row["_start"] or far_future)
-    for row in rows:
-        row.pop("_start")
-    return {
+    rows.sort(key=lambda row: row["_start"])
+    # What is being played now comes before what only waits for its result, latest first.
+    live = [row for row in rows if row["status"] == "live"]
+    awaiting = [row for row in reversed(rows) if row["status"] == "awaiting"]
+    parsed = {
         "id": tournament.get("id"),
         "name": tournament.get("name") or "",
-        "live": [r for r in rows if r["status"] == "live"],
-        "upcoming": [r for r in rows if r["status"] == "scheduled"][:UPCOMING_LIMIT],
-        "results": [r for r in rows if r["status"] == "finished"][-RESULTS_LIMIT:],
+        "live": [*live, *awaiting],
+        "upcoming": [row for row in rows if row["status"] == "scheduled"][:UPCOMING_LIMIT],
+        "results": [row for row in rows if row["status"] == "finished"][-RESULTS_LIMIT:],
     }
+    for row in rows:
+        row.pop("_start")
+    return parsed
 
 
 class BracketClient(IntegrationClient[dict[str, Any]]):
     kind = Integration.Kind.BRACKET
 
-    def _pick_tournament(self) -> dict[str, Any] | None:
+    def _tournament(self) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """The tournament and its stages, as anyone may see them."""
         assert self.config is not None
-        if self.config.tournament_id:
-            payload = self.get_json(f"/tournaments/{self.config.tournament_id}")
-            return payload.get("data")
-        payload = self.get_json("/tournaments", filter_="OPEN")
-        tournaments = payload.get("data") or []
-        return tournaments[0] if tournaments else None
+        prefix = f"/tournaments/{self.config.tournament_id}"
+        try:
+            details = self.get_json(f"{prefix}/details")["data"]
+        except httpx.HTTPStatusError as error:
+            if error.response.status_code != httpx.codes.NOT_FOUND:
+                raise
+        else:
+            return details["tournament"], details["stages"]
+        # A Bracket from before it had the endpoint above. Without `no_draft_rounds` it
+        # refuses to answer anyone who is not an organizer.
+        tournament = self.get_json(prefix)["data"]
+        stages = self.get_json(f"{prefix}/stages", no_draft_rounds="true")["data"]
+        return tournament, stages
 
     def _request(self) -> dict[str, Any]:
         from signage.models import Event
 
-        tournament = self._pick_tournament()
-        if tournament is None:
-            return {"id": None, "name": "", "live": [], "upcoming": [], "results": []}
-        tournament_id = tournament["id"]
-        stages = self.get_json(f"/tournaments/{tournament_id}/stages").get("data") or []
-        teams = self.get_json(f"/tournaments/{tournament_id}/teams").get("data") or []
-        return parse_tournament(tournament, stages, teams, datetime.now(UTC), Event.get_solo().tz)
+        tournament, stages = self._tournament()
+        return parse_tournament(tournament, stages, datetime.now(UTC), Event.get_solo().tz)

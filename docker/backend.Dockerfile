@@ -1,5 +1,5 @@
-# The Django backend: admin, JSON API, integrations. Nothing else runs here: the display is
-# the frontend image, static files and uploads live in the storage bucket.
+# The Django backend: admin, JSON API, integrations. Nothing else runs here: the display and
+# the admin's static files are the frontend image.
 FROM python:3.14-slim-trixie
 
 LABEL org.opencontainers.image.description="Ctrl-Alt-GG Signage backend: Django admin and JSON API."
@@ -7,7 +7,8 @@ LABEL org.opencontainers.image.description="Ctrl-Alt-GG Signage backend: Django 
 ENV DJANGO_SETTINGS_MODULE=config.settings.production \
     PYTHONPATH=/app/src \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    MEDIA_ROOT=/app/data/media
 
 WORKDIR /app
 
@@ -22,10 +23,16 @@ RUN uv export --frozen --no-dev --no-emit-project --output-file /tmp/requirement
         --python /usr/local/bin/python --requirement /tmp/requirements.txt \
     && rm -f /bin/uv /tmp/requirements.txt
 
-COPY --chown=10001:10001 manage.py ./
-COPY --chown=10001:10001 src ./src
-COPY --chown=10001:10001 assets ./assets
-COPY --chown=10001:10001 content ./content
+# The code stays owned by root, so the process that serves requests cannot rewrite it.
+# What it does write goes into volumes: the uploaded background under data/media, and the
+# SQLite database of the local stack under data/db. A named volume takes over the owner
+# of the directory it is mounted on, so both exist here and belong to the app user.
+COPY manage.py ./
+COPY src ./src
+COPY assets ./assets
+COPY content ./content
+RUN mkdir -p /app/data/media /app/data/db && chown -R 10001:10001 /app/data
+VOLUME ["/app/data/media"]
 
 USER 10001:10001
 EXPOSE 8000

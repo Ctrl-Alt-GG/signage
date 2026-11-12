@@ -138,14 +138,12 @@ slides:
     body:
       hu: "{wifi_note}"
       en: "{wifi_note}"
-    footer:
-      hu: "Hálózat: {wifi_ssid}  Jelszó: {wifi_password}"
-      en: "Network: {wifi_ssid}  Password: {wifi_password}"
     link:
       url: "wifi"
       qr: true
     notes: >
-      The credentials layout shows the SSID and password in large monospace
+      The credentials layout reads the exact SSID and password from the Event,
+      shows them in large monospace between quotation marks,
       and a WIFI: QR code so phones join with one scan. {wifi_note} resolves
       to wifi.note in event.yaml.
 

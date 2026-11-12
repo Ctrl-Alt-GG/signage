@@ -6,7 +6,7 @@ breaks them.
 
 ## Stack
 
-Django backend, React 19 + TypeScript + Tailwind CSS v4 display, MinIO for
+Django backend, React 19 + TypeScript + Tailwind CSS v4 display, nginx for
 static files, one container image per component. `uv`, `ruff`, `pnpm`. Do
 not hard-code versions; read them from `pyproject.toml`, `uv.lock`,
 `.python-version`, `frontend/package.json`, `frontend/.nvmrc` and

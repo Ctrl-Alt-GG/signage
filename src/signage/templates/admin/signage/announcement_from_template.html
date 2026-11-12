@@ -2,23 +2,69 @@
 {% load i18n %}
 {% block content %}
 <div id="content-main">
+{% if not template %}
+  <p>{% translate "Choose what to announce. Nothing goes on the screens until you publish on the next page." %}</p>
+  <div class="module">
+    <table>
+      <thead><tr><th>{% translate "Template" %}</th><th>{% translate "Level" %}</th><th>{% translate "Shown as" %}</th><th>{% translate "Text" %}</th></tr></thead>
+      <tbody>
+      {% for row in templates %}
+        <tr>
+          <th><a href="?template={{ row.pk }}">{{ row.key }}</a></th>
+          <td>{{ row.get_level_display }}</td>
+          <td>{% if row.takeover %}{% translate "Takeover: replaces the slides" %}{% else %}{% translate "Bar under the slides" %}{% endif %}</td>
+          <td>{{ row.text_hu }}<br><span class="help">{{ row.text_en }}</span></td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="4">{% translate "There are no templates yet. Import announcements.yaml, or add one." %}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% else %}
+  <p>
+    <strong>{{ template.key }}</strong>:
+    {{ template.get_level_display }},
+    {% if template.takeover %}{% translate "takeover: replaces the slides while it is on" %}{% else %}{% translate "a bar under the slides" %}{% endif %}.
+    <a href="{% url 'admin:signage_announcement_from_template' %}">{% translate "Choose another template" %}</a>
+  </p>
+  <p><strong>HU:</strong> {{ template.text_hu }}<br><strong>EN:</strong> {{ template.text_en }}</p>
+  {% if from_event %}
+  <p class="help">
+    {% translate "Filled in from the event:" %}
+    {% for row in from_event %}{% templatetag openbrace %}{{ row.name }}{% templatetag closebrace %} = {{ row.values|join:" / " }}{% if not forloop.last %}; {% endif %}{% endfor %}
+  </p>
+  {% endif %}
   <form method="post">
     {% csrf_token %}
+    <input type="hidden" name="template" value="{{ template.pk }}">
+    {{ form.non_field_errors }}
     <fieldset class="module aligned">
       {% for field in form %}
       <div class="form-row">
         {{ field.errors }}
         {{ field.label_tag }} {{ field }}
+        {% if field.help_text %}<div class="help">{{ field.help_text }}</div>{% endif %}
       </div>
       {% endfor %}
     </fieldset>
-    {% if template %}
-      <p><strong>HU:</strong> {{ template.text_hu }}<br><strong>EN:</strong> {{ template.text_en }}</p>
+    {% if preview %}
+    <div class="module">
+      <h2>{% translate "This is what the screens will show" %}</h2>
+      {% for row in preview %}
+      <p style="padding:0 1rem">
+        <strong>{{ row.lang }}</strong> ({% blocktranslate with length=row.length %}{{ length }} characters{% endblocktranslate %}):
+        {{ row.text }}
+        {% if row.note %}<br><span class="help">{{ row.note }}</span>{% endif %}
+      </p>
+      {% endfor %}
+    </div>
     {% endif %}
     <div class="submit-row">
-      <input type="submit" name="pick" value="{% translate 'Load template fields' %}">
-      {% if template %}<input type="submit" name="create" class="default" value="{% translate 'Publish announcement' %}">{% endif %}
+      <input type="submit" name="publish" class="default" value="{% translate 'Publish announcement' %}">
+      <input type="submit" name="preview" value="{% translate 'Preview the text' %}">
     </div>
   </form>
+{% endif %}
 </div>
 {% endblock %}

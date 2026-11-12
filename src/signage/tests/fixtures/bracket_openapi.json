@@ -1,0 +1,1378 @@
+{
+ "comment": "The part of Bracket's OpenAPI document (backend/openapi/openapi.json in Ctrl-Alt-GG/bracket) that describes the answers signage reads. Copied, not written: refresh it from Bracket when its API changes.",
+ "openapi": "3.1.0",
+ "responses": {
+  "details": {
+   "$ref": "#/components/schemas/TournamentDetailsResponse"
+  },
+  "tournament": {
+   "$ref": "#/components/schemas/TournamentResponse"
+  },
+  "stages": {
+   "$ref": "#/components/schemas/StagesWithStageItemsResponse"
+  }
+ },
+ "components": {
+  "schemas": {
+   "FullTeamWithPlayers": {
+    "properties": {
+     "active": {
+      "title": "Active",
+      "type": "boolean"
+     },
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "draws": {
+      "default": 0,
+      "title": "Draws",
+      "type": "integer"
+     },
+     "elo_score": {
+      "default": "1200",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Elo Score",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "logo_path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Logo Path"
+     },
+     "losses": {
+      "default": 0,
+      "title": "Losses",
+      "type": "integer"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "players": {
+      "items": {
+       "$ref": "#/components/schemas/Player"
+      },
+      "title": "Players",
+      "type": "array"
+     },
+     "swiss_score": {
+      "default": "0.0",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Swiss Score",
+      "type": "string"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     },
+     "wins": {
+      "default": 0,
+      "title": "Wins",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "created",
+     "name",
+     "tournament_id",
+     "active",
+     "elo_score",
+     "swiss_score",
+     "wins",
+     "draws",
+     "losses",
+     "logo_path",
+     "id",
+     "players"
+    ],
+    "title": "FullTeamWithPlayers",
+    "type": "object"
+   },
+   "MatchWithDetails": {
+    "description": "MatchWithDetails has zero or one defined stage item inputs, but not both.",
+    "properties": {
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "custom_duration_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Duration Minutes"
+     },
+     "custom_margin_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Margin Minutes"
+     },
+     "duration_minutes": {
+      "title": "Duration Minutes",
+      "type": "integer"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "margin_minutes": {
+      "title": "Margin Minutes",
+      "type": "integer"
+     },
+     "played": {
+      "description": "Whether the match has a result.",
+      "readOnly": true,
+      "title": "Played",
+      "type": "boolean"
+     },
+     "round_id": {
+      "title": "Round Id",
+      "type": "integer"
+     },
+     "scoreless_result": {
+      "default": false,
+      "title": "Scoreless Result",
+      "type": "boolean"
+     },
+     "stage_item_input1": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StageItemInputTentative"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputFinal"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputEmpty"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input1"
+     },
+     "stage_item_input1_conflict": {
+      "title": "Stage Item Input1 Conflict",
+      "type": "boolean"
+     },
+     "stage_item_input1_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input1 Id"
+     },
+     "stage_item_input1_score": {
+      "title": "Stage Item Input1 Score",
+      "type": "integer"
+     },
+     "stage_item_input1_winner_from_match_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input1 Winner From Match Id"
+     },
+     "stage_item_input2": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StageItemInputTentative"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputFinal"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputEmpty"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input2"
+     },
+     "stage_item_input2_conflict": {
+      "title": "Stage Item Input2 Conflict",
+      "type": "boolean"
+     },
+     "stage_item_input2_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input2 Id"
+     },
+     "stage_item_input2_score": {
+      "title": "Stage Item Input2 Score",
+      "type": "integer"
+     },
+     "stage_item_input2_winner_from_match_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input2 Winner From Match Id"
+     },
+     "start_time": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start Time"
+     }
+    },
+    "required": [
+     "created",
+     "start_time",
+     "duration_minutes",
+     "margin_minutes",
+     "custom_duration_minutes",
+     "custom_margin_minutes",
+     "round_id",
+     "stage_item_input1_score",
+     "stage_item_input2_score",
+     "stage_item_input1_conflict",
+     "stage_item_input2_conflict",
+     "scoreless_result",
+     "stage_item_input1_id",
+     "stage_item_input2_id",
+     "stage_item_input1_winner_from_match_id",
+     "stage_item_input2_winner_from_match_id",
+     "id",
+     "stage_item_input1",
+     "stage_item_input2",
+     "played"
+    ],
+    "title": "MatchWithDetails",
+    "type": "object"
+   },
+   "MatchWithDetailsDefinitive": {
+    "properties": {
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "custom_duration_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Duration Minutes"
+     },
+     "custom_margin_minutes": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Margin Minutes"
+     },
+     "duration_minutes": {
+      "title": "Duration Minutes",
+      "type": "integer"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "margin_minutes": {
+      "title": "Margin Minutes",
+      "type": "integer"
+     },
+     "played": {
+      "description": "Whether the match has a result.",
+      "readOnly": true,
+      "title": "Played",
+      "type": "boolean"
+     },
+     "round_id": {
+      "title": "Round Id",
+      "type": "integer"
+     },
+     "scoreless_result": {
+      "default": false,
+      "title": "Scoreless Result",
+      "type": "boolean"
+     },
+     "stage_item_input1": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StageItemInputTentative"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputFinal"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputEmpty"
+       }
+      ],
+      "title": "Stage Item Input1"
+     },
+     "stage_item_input1_conflict": {
+      "title": "Stage Item Input1 Conflict",
+      "type": "boolean"
+     },
+     "stage_item_input1_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input1 Id"
+     },
+     "stage_item_input1_score": {
+      "title": "Stage Item Input1 Score",
+      "type": "integer"
+     },
+     "stage_item_input1_winner_from_match_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input1 Winner From Match Id"
+     },
+     "stage_item_input2": {
+      "anyOf": [
+       {
+        "$ref": "#/components/schemas/StageItemInputTentative"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputFinal"
+       },
+       {
+        "$ref": "#/components/schemas/StageItemInputEmpty"
+       }
+      ],
+      "title": "Stage Item Input2"
+     },
+     "stage_item_input2_conflict": {
+      "title": "Stage Item Input2 Conflict",
+      "type": "boolean"
+     },
+     "stage_item_input2_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input2 Id"
+     },
+     "stage_item_input2_score": {
+      "title": "Stage Item Input2 Score",
+      "type": "integer"
+     },
+     "stage_item_input2_winner_from_match_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Input2 Winner From Match Id"
+     },
+     "start_time": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Start Time"
+     }
+    },
+    "required": [
+     "created",
+     "start_time",
+     "duration_minutes",
+     "margin_minutes",
+     "custom_duration_minutes",
+     "custom_margin_minutes",
+     "round_id",
+     "stage_item_input1_score",
+     "stage_item_input2_score",
+     "stage_item_input1_conflict",
+     "stage_item_input2_conflict",
+     "scoreless_result",
+     "stage_item_input1_id",
+     "stage_item_input2_id",
+     "stage_item_input1_winner_from_match_id",
+     "stage_item_input2_winner_from_match_id",
+     "id",
+     "stage_item_input1",
+     "stage_item_input2",
+     "played"
+    ],
+    "title": "MatchWithDetailsDefinitive",
+    "type": "object"
+   },
+   "Player": {
+    "properties": {
+     "active": {
+      "title": "Active",
+      "type": "boolean"
+     },
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "draws": {
+      "default": 0,
+      "title": "Draws",
+      "type": "integer"
+     },
+     "elo_score": {
+      "default": "0.0",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Elo Score",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "losses": {
+      "default": 0,
+      "title": "Losses",
+      "type": "integer"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "swiss_score": {
+      "default": "0.0",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Swiss Score",
+      "type": "string"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     },
+     "wins": {
+      "default": 0,
+      "title": "Wins",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "active",
+     "name",
+     "created",
+     "tournament_id",
+     "elo_score",
+     "swiss_score",
+     "wins",
+     "draws",
+     "losses",
+     "id"
+    ],
+    "title": "Player",
+    "type": "object"
+   },
+   "Ranking": {
+    "properties": {
+     "add_score_points": {
+      "title": "Add Score Points",
+      "type": "boolean"
+     },
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "draw_points": {
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Draw Points",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "loss_points": {
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Loss Points",
+      "type": "string"
+     },
+     "position": {
+      "title": "Position",
+      "type": "integer"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     },
+     "win_points": {
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Win Points",
+      "type": "string"
+     }
+    },
+    "required": [
+     "tournament_id",
+     "win_points",
+     "draw_points",
+     "loss_points",
+     "add_score_points",
+     "position",
+     "id",
+     "created"
+    ],
+    "title": "Ranking",
+    "type": "object"
+   },
+   "RoundWithMatches": {
+    "properties": {
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "is_draft": {
+      "title": "Is Draft",
+      "type": "boolean"
+     },
+     "matches": {
+      "items": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/MatchWithDetailsDefinitive"
+        },
+        {
+         "$ref": "#/components/schemas/MatchWithDetails"
+        }
+       ]
+      },
+      "title": "Matches",
+      "type": "array"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "stage_item_id": {
+      "title": "Stage Item Id",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "created",
+     "stage_item_id",
+     "is_draft",
+     "name",
+     "id",
+     "matches"
+    ],
+    "title": "RoundWithMatches",
+    "type": "object"
+   },
+   "StageItemInputEmpty": {
+    "properties": {
+     "draws": {
+      "default": 0,
+      "title": "Draws",
+      "type": "integer"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "losses": {
+      "default": 0,
+      "title": "Losses",
+      "type": "integer"
+     },
+     "points": {
+      "default": "0.0",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Points",
+      "type": "string"
+     },
+     "slot": {
+      "title": "Slot",
+      "type": "integer"
+     },
+     "stage_item_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Id"
+     },
+     "team_id": {
+      "title": "Team Id",
+      "type": "null"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     },
+     "winner_from_stage_item_id": {
+      "title": "Winner From Stage Item Id",
+      "type": "null"
+     },
+     "winner_position": {
+      "title": "Winner Position",
+      "type": "null"
+     },
+     "wins": {
+      "default": 0,
+      "title": "Wins",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "points",
+     "wins",
+     "draws",
+     "losses",
+     "id",
+     "slot",
+     "tournament_id",
+     "stage_item_id",
+     "team_id",
+     "winner_from_stage_item_id",
+     "winner_position"
+    ],
+    "title": "StageItemInputEmpty",
+    "type": "object"
+   },
+   "StageItemInputFinal": {
+    "properties": {
+     "draws": {
+      "default": 0,
+      "title": "Draws",
+      "type": "integer"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "losses": {
+      "default": 0,
+      "title": "Losses",
+      "type": "integer"
+     },
+     "points": {
+      "default": "0.0",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Points",
+      "type": "string"
+     },
+     "slot": {
+      "title": "Slot",
+      "type": "integer"
+     },
+     "stage_item_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Id"
+     },
+     "team": {
+      "$ref": "#/components/schemas/Team"
+     },
+     "team_id": {
+      "title": "Team Id",
+      "type": "integer"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     },
+     "winner_from_stage_item_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Winner From Stage Item Id"
+     },
+     "winner_position": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Winner Position"
+     },
+     "wins": {
+      "default": 0,
+      "title": "Wins",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "points",
+     "wins",
+     "draws",
+     "losses",
+     "id",
+     "slot",
+     "tournament_id",
+     "stage_item_id",
+     "team_id",
+     "winner_from_stage_item_id",
+     "winner_position",
+     "team"
+    ],
+    "title": "StageItemInputFinal",
+    "type": "object"
+   },
+   "StageItemInputStanding": {
+    "properties": {
+     "draws": {
+      "default": 0,
+      "title": "Draws",
+      "type": "integer"
+     },
+     "losses": {
+      "default": 0,
+      "title": "Losses",
+      "type": "integer"
+     },
+     "points": {
+      "default": "0.00",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Points",
+      "type": "string"
+     },
+     "score_against": {
+      "default": 0,
+      "title": "Score Against",
+      "type": "integer"
+     },
+     "score_for": {
+      "default": 0,
+      "title": "Score For",
+      "type": "integer"
+     },
+     "stage_item_input_id": {
+      "title": "Stage Item Input Id",
+      "type": "integer"
+     },
+     "wins": {
+      "default": 0,
+      "title": "Wins",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "wins",
+     "draws",
+     "losses",
+     "points",
+     "score_for",
+     "score_against",
+     "stage_item_input_id"
+    ],
+    "title": "StageItemInputStanding",
+    "type": "object"
+   },
+   "StageItemInputTentative": {
+    "properties": {
+     "draws": {
+      "default": 0,
+      "title": "Draws",
+      "type": "integer"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "losses": {
+      "default": 0,
+      "title": "Losses",
+      "type": "integer"
+     },
+     "points": {
+      "default": "0.0",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Points",
+      "type": "string"
+     },
+     "slot": {
+      "title": "Slot",
+      "type": "integer"
+     },
+     "stage_item_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Stage Item Id"
+     },
+     "team_id": {
+      "title": "Team Id",
+      "type": "null"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     },
+     "winner_from_stage_item_id": {
+      "title": "Winner From Stage Item Id",
+      "type": "integer"
+     },
+     "winner_position": {
+      "minimum": 1.0,
+      "title": "Winner Position",
+      "type": "integer"
+     },
+     "wins": {
+      "default": 0,
+      "title": "Wins",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "points",
+     "wins",
+     "draws",
+     "losses",
+     "id",
+     "slot",
+     "tournament_id",
+     "stage_item_id",
+     "team_id",
+     "winner_from_stage_item_id",
+     "winner_position"
+    ],
+    "title": "StageItemInputTentative",
+    "type": "object"
+   },
+   "StageItemWithRounds": {
+    "properties": {
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "inputs": {
+      "items": {
+       "anyOf": [
+        {
+         "$ref": "#/components/schemas/StageItemInputTentative"
+        },
+        {
+         "$ref": "#/components/schemas/StageItemInputFinal"
+        },
+        {
+         "$ref": "#/components/schemas/StageItemInputEmpty"
+        }
+       ]
+      },
+      "title": "Inputs",
+      "type": "array"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "ranking_id": {
+      "anyOf": [
+       {
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Ranking Id"
+     },
+     "rounds": {
+      "items": {
+       "$ref": "#/components/schemas/RoundWithMatches"
+      },
+      "title": "Rounds",
+      "type": "array"
+     },
+     "stage_id": {
+      "title": "Stage Id",
+      "type": "integer"
+     },
+     "team_count": {
+      "maximum": 64.0,
+      "minimum": 2.0,
+      "title": "Team Count",
+      "type": "integer"
+     },
+     "type": {
+      "$ref": "#/components/schemas/StageType"
+     },
+     "type_name": {
+      "title": "Type Name",
+      "type": "string"
+     }
+    },
+    "required": [
+     "stage_id",
+     "name",
+     "created",
+     "type",
+     "team_count",
+     "ranking_id",
+     "id",
+     "rounds",
+     "inputs",
+     "type_name"
+    ],
+    "title": "StageItemWithRounds",
+    "type": "object"
+   },
+   "StageType": {
+    "enum": [
+     "ROUND_ROBIN",
+     "SINGLE_ELIMINATION",
+     "SWISS"
+    ],
+    "title": "StageType",
+    "type": "string"
+   },
+   "StageWithStageItems": {
+    "properties": {
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "custom_duration_minutes": {
+      "anyOf": [
+       {
+        "maximum": 1440.0,
+        "minimum": 1.0,
+        "type": "integer"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Custom Duration Minutes"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "is_active": {
+      "title": "Is Active",
+      "type": "boolean"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "stage_items": {
+      "items": {
+       "$ref": "#/components/schemas/StageItemWithRounds"
+      },
+      "title": "Stage Items",
+      "type": "array"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "tournament_id",
+     "name",
+     "created",
+     "is_active",
+     "custom_duration_minutes",
+     "id",
+     "stage_items"
+    ],
+    "title": "StageWithStageItems",
+    "type": "object"
+   },
+   "StagesWithStageItemsResponse": {
+    "properties": {
+     "data": {
+      "items": {
+       "$ref": "#/components/schemas/StageWithStageItems"
+      },
+      "title": "Data",
+      "type": "array"
+     }
+    },
+    "required": [
+     "data"
+    ],
+    "title": "StagesWithStageItemsResponse",
+    "type": "object"
+   },
+   "Team": {
+    "properties": {
+     "active": {
+      "title": "Active",
+      "type": "boolean"
+     },
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "draws": {
+      "default": 0,
+      "title": "Draws",
+      "type": "integer"
+     },
+     "elo_score": {
+      "default": "1200",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Elo Score",
+      "type": "string"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "logo_path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Logo Path"
+     },
+     "losses": {
+      "default": 0,
+      "title": "Losses",
+      "type": "integer"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "swiss_score": {
+      "default": "0.0",
+      "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+      "title": "Swiss Score",
+      "type": "string"
+     },
+     "tournament_id": {
+      "title": "Tournament Id",
+      "type": "integer"
+     },
+     "wins": {
+      "default": 0,
+      "title": "Wins",
+      "type": "integer"
+     }
+    },
+    "required": [
+     "created",
+     "name",
+     "tournament_id",
+     "active",
+     "elo_score",
+     "swiss_score",
+     "wins",
+     "draws",
+     "losses",
+     "logo_path",
+     "id"
+    ],
+    "title": "Team",
+    "type": "object"
+   },
+   "Tournament": {
+    "properties": {
+     "club_id": {
+      "title": "Club Id",
+      "type": "integer"
+     },
+     "created": {
+      "format": "date-time",
+      "title": "Created",
+      "type": "string"
+     },
+     "dashboard_endpoint": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Dashboard Endpoint"
+     },
+     "dashboard_public": {
+      "title": "Dashboard Public",
+      "type": "boolean"
+     },
+     "duration_minutes": {
+      "minimum": 1.0,
+      "title": "Duration Minutes",
+      "type": "integer"
+     },
+     "id": {
+      "title": "Id",
+      "type": "integer"
+     },
+     "last_match_end": {
+      "anyOf": [
+       {
+        "format": "date-time",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Last Match End"
+     },
+     "logo_path": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Logo Path"
+     },
+     "margin_minutes": {
+      "minimum": 0.0,
+      "title": "Margin Minutes",
+      "type": "integer"
+     },
+     "matches_played": {
+      "default": 0,
+      "title": "Matches Played",
+      "type": "integer"
+     },
+     "matches_total": {
+      "default": 0,
+      "title": "Matches Total",
+      "type": "integer"
+     },
+     "name": {
+      "title": "Name",
+      "type": "string"
+     },
+     "players_can_be_in_multiple_teams": {
+      "title": "Players Can Be In Multiple Teams",
+      "type": "boolean"
+     },
+     "start_time": {
+      "format": "date-time",
+      "title": "Start Time",
+      "type": "string"
+     },
+     "status": {
+      "$ref": "#/components/schemas/TournamentStatus",
+      "default": "OPEN"
+     }
+    },
+    "required": [
+     "club_id",
+     "name",
+     "created",
+     "start_time",
+     "duration_minutes",
+     "margin_minutes",
+     "dashboard_public",
+     "dashboard_endpoint",
+     "logo_path",
+     "players_can_be_in_multiple_teams",
+     "status",
+     "id",
+     "matches_total",
+     "matches_played",
+     "last_match_end"
+    ],
+    "title": "Tournament",
+    "type": "object"
+   },
+   "TournamentDetails": {
+    "description": "What the Details pages of a tournament show: one answer instead of six requests.",
+    "properties": {
+     "players": {
+      "items": {
+       "$ref": "#/components/schemas/Player"
+      },
+      "title": "Players",
+      "type": "array"
+     },
+     "rankings": {
+      "items": {
+       "$ref": "#/components/schemas/Ranking"
+      },
+      "title": "Rankings",
+      "type": "array"
+     },
+     "stages": {
+      "items": {
+       "$ref": "#/components/schemas/StageWithStageItems"
+      },
+      "title": "Stages",
+      "type": "array"
+     },
+     "standings": {
+      "additionalProperties": {
+       "items": {
+        "$ref": "#/components/schemas/StageItemInputStanding"
+       },
+       "type": "array"
+      },
+      "title": "Standings",
+      "type": "object"
+     },
+     "teams": {
+      "items": {
+       "$ref": "#/components/schemas/FullTeamWithPlayers"
+      },
+      "title": "Teams",
+      "type": "array"
+     },
+     "tournament": {
+      "$ref": "#/components/schemas/Tournament"
+     }
+    },
+    "required": [
+     "tournament",
+     "stages",
+     "players",
+     "teams",
+     "rankings",
+     "standings"
+    ],
+    "title": "TournamentDetails",
+    "type": "object"
+   },
+   "TournamentDetailsResponse": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/TournamentDetails"
+     }
+    },
+    "required": [
+     "data"
+    ],
+    "title": "TournamentDetailsResponse",
+    "type": "object"
+   },
+   "TournamentResponse": {
+    "properties": {
+     "data": {
+      "$ref": "#/components/schemas/Tournament"
+     }
+    },
+    "required": [
+     "data"
+    ],
+    "title": "TournamentResponse",
+    "type": "object"
+   },
+   "TournamentStatus": {
+    "enum": [
+     "OPEN",
+     "ARCHIVED"
+    ],
+    "title": "TournamentStatus",
+    "type": "string"
+   }
+  }
+ }
+}

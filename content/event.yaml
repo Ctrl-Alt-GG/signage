@@ -1,7 +1,8 @@
 # Event facts for the signage. Loaded by `manage.py loadcontent` into the Event
 # model, then editable in the Django admin. The admin copy wins after the first
-# load; re-running loadcontent only fills fields that are still empty unless
-# `--overwrite` is passed.
+# load: while the event still has neither a venue name nor a Wi-Fi network,
+# loadcontent fills in everything below, and after that it leaves the event
+# alone unless `--overwrite` is passed, which replaces all of it.
 #
 # Values below were read from the sibling repositories on 2026-10-06
 # (homepage, care, link-collection, network-services). Anything marked
@@ -69,9 +70,10 @@ venue:
       night_lines: []
 
 wifi:
-  # The SSID is not published. The password below is the one Spawn shows.
+  # Neither is published, and a password does not belong in a repository. Set
+  # both in the admin; the Wi-Fi slide stays off the screens until then.
   ssid: "CHANGE-ME"
-  password: "foldalattholdfelett"
+  password: "CHANGE-ME"
   security: "WPA"
   note:
     hu: "Játszani kábelen érdemes. A Wi-Fi a telefonodnak van."

@@ -13,13 +13,12 @@ with live data from the other Ctrl-Alt-GG systems (schedule, game servers,
 tournament, streams), steered from a Django admin during the event. It runs
 on the venue network only.
 
-Three containers, one per component, plus Postgres:
+Two application images, plus Postgres:
 
 | Component | Image | Runs |
 |---|---|---|
 | backend | `docker/backend.Dockerfile`: Python on Debian slim | Django admin (the only management UI), the JSON API, the upstream integrations, the YAML content import |
-| frontend | `docker/frontend.Dockerfile`: rootless nginx on Debian | The React 19 + TypeScript + Tailwind CSS v4 display built by Vite. nginx also proxies `/api/`, `/admin/` and `/health/` to the backend, so a kiosk or an organizer sees one origin |
-| minio | `docker/minio.Dockerfile`: MinIO built from source on Debian | The S3 bucket holding Django's static files and the uploaded background; browsers load them from here |
+| frontend | `docker/frontend.Dockerfile`: rootless nginx on Debian | The React 19 + TypeScript + Tailwind CSS v4 display built by Vite and Django's collected static files. nginx also proxies `/api/`, `/admin/` and `/health/` to the backend, so a kiosk or an organizer sees one origin |
 
 Each image contains only what its component needs to run. No alpine
 variants anywhere.
@@ -68,11 +67,12 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   carries `origin=admin` and later imports skip it unless overwrite is
   requested, so a redeploy never undoes an organizer's edit. The
   background SVG is exchangeable in the admin.
-- Files: with `STORAGE_ENDPOINT_URL` set, django-storages keeps static
-  files and uploads in the S3 bucket and `manage.py ensurestorage` creates
-  the bucket with an anonymous-read policy; without it the filesystem
-  under `data/` is used (development). The backend never serves static
-  files in production.
+- Files: nginx serves Django's static files, collected while building the
+  frontend image. Uploaded backgrounds live on the backend's persistent
+  `media` volume and are served only through the sandboxed background API.
+  MinIO was removed because the community server is unmaintained and the
+  application only needs a few local files. The backend never serves static
+  files in production. Back up the media volume with the database.
 - Access rights are fixed: the API is read-only and anonymous, the admin
   is staff-only.
 - Generated files are git-ignored and never committed:
@@ -89,6 +89,15 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   required, English falls back to Hungarian.
 - Live slides fall back to last-good data, then to their `empty` text.
   The room never sees an error.
+- The Wi-Fi layout reads exact structured credentials, preserving spaces.
+  Quotation marks show where each value begins and ends and are not part
+  of the credential. Open networks show no password.
+- Live tournament matches appear in consecutive passes, two per page,
+  with the displayed range and total shown. Each page keeps the slide's
+  configured duration, so all matches appear during one rotation.
+- Announcement severity takes precedence over bar/takeover mode. Only
+  the highest active severity is shown; peers use a takeover if present,
+  otherwise their bars rotate. Lower levels resume when it ends.
 - Nothing is fetched from the public internet by the display: fonts,
   icons and QR codes are bundled or generated.
 - Tailwind v4 syntax only (`@import "tailwindcss"`, `@theme`, `@source`).
@@ -99,6 +108,8 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   `python3 scripts/render_content.py --check` lints them (both languages
   present, bullet limits, banned typography). Without `--check` it also
   writes a Markdown preview to the git-ignored `docs/content.md`.
+  Content YAML uses plain mappings and lists. Aliases and merge keys are
+  rejected before expansion; imports also limit nesting and node counts.
 - Keep the copy honest to its sources (the homepage and Care). Anything
   only an organizer knows stays `CHANGE-ME` in the seed and is set in the
   admin; the app drops a slide with an unresolved value.
@@ -176,7 +187,7 @@ uv run python manage.py spectacular --file frontend/openapi.yaml --validate
 uv run python scripts/screenshots.py       # safe area, clipping and overflow checks
 ```
 
-The pipeline runs the same commands, then builds the three images and,
+The pipeline runs the same commands, then builds the two images and,
 on `main` and `v*` tags, publishes them to GHCR.
 
 ## 9. Do-not-touch list

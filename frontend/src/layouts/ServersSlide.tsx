@@ -18,8 +18,9 @@ export function ServersSlide({ pass }: { pass: Pass }) {
         <EmptyState pass={pass} />
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-4 grid-rows-2 gap-6">
-          {servers.slice(0, MAX_CARDS).map((server) => (
-            <div key={`${server.game_slug}:${server.name}`} className="surface flex min-h-0 flex-col overflow-hidden p-0">
+          {servers.slice(0, MAX_CARDS).map((server, index) => (
+            // Two servers can share a game and a name, so their place in the list is the key.
+            <div key={index} className="surface flex min-h-0 flex-col overflow-hidden p-0">
               <div
                 className="flex h-[64px] items-center px-5 text-[30px] font-bold leading-none"
                 style={{ background: server.color_bg, color: server.color_text }}

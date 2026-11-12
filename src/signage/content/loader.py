@@ -1,6 +1,12 @@
 """Import content/*.yaml into the database. Idempotent: existing rows are matched by
 their key (slide id, schedule key, game slug, phase key, template key) and only updated
-while they still carry the seed origin, or when `overwrite` is requested."""
+while they still carry the seed origin, or when `overwrite` is requested.
+
+The import runs on every start of the stack, so it has to leave an organizer's decisions
+alone. A row edited in the admin keeps its values. A row deleted in the admin stays
+deleted. With `prune`, a row that came from the YAML and is no longer in it is removed;
+rows created or edited in the admin never are.
+"""
 
 from __future__ import annotations
 
@@ -9,11 +15,11 @@ from datetime import datetime, time
 from decimal import Decimal
 from pathlib import Path
 
-import yaml
 from django.db import transaction
 from django.utils.dateparse import parse_datetime
 
 from signage.content import lint
+from signage.content.safe_yaml import load_yaml
 from signage.models import (
     LANGS,
     AnnouncementTemplate,
@@ -21,6 +27,7 @@ from signage.models import (
     Game,
     Origin,
     Phase,
+    RemovedSeed,
     ScheduleEntry,
     Slide,
     SlideItem,
@@ -39,26 +46,30 @@ FILES = {
 class Report:
     created: int = 0
     updated: int = 0
+    removed: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
 
     def merge(self, other: Report) -> None:
         self.created += other.created
         self.updated += other.updated
+        self.removed.extend(other.removed)
         self.skipped.extend(other.skipped)
         self.warnings.extend(other.warnings)
 
     def summary(self) -> str:
         text = f"{self.created} created, {self.updated} updated"
+        if self.removed:
+            text += f", {len(self.removed)} removed (no longer in the YAML)"
         if self.skipped:
-            text += f", {len(self.skipped)} skipped (edited in the admin)"
+            text += f", {len(self.skipped)} skipped (edited or deleted in the admin)"
         return text
 
 
 def read_yaml(path: Path) -> dict:
     text = path.read_text(encoding="utf-8")
     lint.lint_text(text, str(path))
-    data = yaml.safe_load(text) or {}
+    data = load_yaml(text) or {}
     if not isinstance(data, dict):
         raise lint.LintError(f"{path}: top level must be a mapping")
     return data
@@ -95,6 +106,18 @@ def _bilingual(data: dict, key: str) -> dict[str, str]:
     return {lang: value.get(lang, "") for lang in LANGS}
 
 
+def _was_removed(model, key: str, report: Report, label: str, *, overwrite: bool) -> bool:
+    """Whether an organizer deleted this row, which a plain import respects. An import
+    that overwrites brings the row back and forgets the deletion."""
+    if key not in RemovedSeed.keys_for(model):
+        return False
+    if overwrite:
+        RemovedSeed.forget(model, key)
+        return False
+    report.skipped.append(f"{label} (deleted in the admin)")
+    return True
+
+
 def _seed_row(model, report: Report, label: str, lookup: dict, values: dict, *, overwrite: bool):
     """Create or update one seeded row. A row saved in the admin keeps its values unless
     `overwrite` is requested; a row the seed touches goes back to the seed origin."""
@@ -102,21 +125,39 @@ def _seed_row(model, report: Report, label: str, lookup: dict, values: dict, *, 
     if existing and existing.origin == Origin.ADMIN and not overwrite:
         report.skipped.append(label)
         return existing
-    if existing:
-        for attr, value in values.items():
-            setattr(existing, attr, value)
-        existing.origin = Origin.SEED
-        existing.save()
-        report.updated += 1
-        return existing
-    row = model(**lookup, **values, origin=Origin.SEED)
+    if existing is None and _was_removed(
+        model, str(next(iter(lookup.values()))), report, label, overwrite=overwrite
+    ):
+        return None
+    row = existing or model(**lookup)
+    for attr, value in values.items():
+        setattr(row, attr, value)
+    row.origin = Origin.SEED
+    # The database would refuse a text that is too long with an error of its own, or keep
+    # it, depending on which database it is. This says which field of which row it is.
+    row.full_clean()
     row.save()
-    report.created += 1
+    if existing:
+        report.updated += 1
+    else:
+        report.created += 1
     return row
 
 
+def _prune(model, report: Report, label: str, keys: set[str], *, prune: bool) -> None:
+    """Remove the rows that came from the YAML and have left it. The YAML is what such a
+    row is; one that an organizer created or edited is theirs and stays."""
+    if not prune:
+        return
+    field_name = model.seed_key_field
+    gone = model.objects.filter(origin=Origin.SEED).exclude(**{f"{field_name}__in": keys})
+    for row in gone:
+        report.removed.append(f"{label} {row.seed_key}")
+    gone.delete()
+
+
 @transaction.atomic
-def load_event(data: dict, *, overwrite: bool = False) -> Report:
+def load_event(data: dict, *, overwrite: bool = False, prune: bool = False) -> Report:
     report = Report()
     event = Event.get_solo()
     is_new = event.venue_name == "" and not event.wifi_ssid
@@ -164,6 +205,8 @@ def load_event(data: dict, *, overwrite: bool = False) -> Report:
             },
             overwrite=overwrite,
         )
+    _prune(Phase, report, "phase", {phase["key"] for phase in data["phases"]}, prune=prune)
+    event.refresh_from_db()
     if event.current_phase is None:
         event.current_phase = Phase.objects.order_by("order").first()
         event.save(update_fields=["current_phase"])
@@ -171,7 +214,7 @@ def load_event(data: dict, *, overwrite: bool = False) -> Report:
 
 
 @transaction.atomic
-def load_games(data: dict, *, overwrite: bool = False) -> Report:
+def load_games(data: dict, *, overwrite: bool = False, prune: bool = False) -> Report:
     report = Report()
     for game in data["games"]:
         color = game.get("color") or {}
@@ -191,11 +234,12 @@ def load_games(data: dict, *, overwrite: bool = False) -> Report:
             },
             overwrite=overwrite,
         )
+    _prune(Game, report, "game", {game["slug"] for game in data["games"]}, prune=prune)
     return report
 
 
 @transaction.atomic
-def load_schedule(data: dict, *, overwrite: bool = False) -> Report:
+def load_schedule(data: dict, *, overwrite: bool = False, prune: bool = False) -> Report:
     report = Report()
     games = {g.slug: g for g in Game.objects.all()}
     for order, entry in enumerate(data["entries"]):
@@ -220,6 +264,8 @@ def load_schedule(data: dict, *, overwrite: bool = False) -> Report:
             },
             overwrite=overwrite,
         )
+    keys = {entry["key"] for entry in data["entries"]}
+    _prune(ScheduleEntry, report, "schedule", keys, prune=prune)
     return report
 
 
@@ -278,11 +324,13 @@ def _replace_items(slide: Slide, data: dict) -> None:
                     icon=item.get("icon", ""),
                 )
             )
+    for row in rows:
+        row.full_clean(exclude=["slide"])
     SlideItem.objects.bulk_create(rows)
 
 
 @transaction.atomic
-def load_slides(data: dict, *, overwrite: bool = False) -> Report:
+def load_slides(data: dict, *, overwrite: bool = False, prune: bool = False) -> Report:
     report = Report()
     defaults = data.get("defaults", {})
     phases = {p.key: p for p in Phase.objects.all()}
@@ -291,6 +339,10 @@ def load_slides(data: dict, *, overwrite: bool = False) -> Report:
         existing = Slide.objects.filter(pk=key).first()
         if existing and existing.origin == Origin.ADMIN and not overwrite:
             report.skipped.append(f"slide {key}")
+            continue
+        if existing is None and _was_removed(
+            Slide, key, report, f"slide {key}", overwrite=overwrite
+        ):
             continue
         values = _slide_defaults(slide_data, defaults, order)
         values["origin"] = Origin.SEED
@@ -305,13 +357,19 @@ def load_slides(data: dict, *, overwrite: bool = False) -> Report:
         slide.full_clean(exclude=["phases"])
         slide.save()
         wanted = slide_data.get("phases")
-        slide.phases.set([] if wanted == "all" else [phases[k] for k in wanted])
+        if wanted != "all" and (missing := set(wanted) - phases.keys()):
+            report.warnings.append(
+                f"slide {key}: phases deleted in the admin are omitted: "
+                f"{', '.join(sorted(missing))}"
+            )
+        slide.phases.set([] if wanted == "all" else [phases[k] for k in wanted if k in phases])
         _replace_items(slide, slide_data)
+    _prune(Slide, report, "slide", {slide["id"] for slide in data["slides"]}, prune=prune)
     return report
 
 
 @transaction.atomic
-def load_announcements(data: dict, *, overwrite: bool = False) -> Report:
+def load_announcements(data: dict, *, overwrite: bool = False, prune: bool = False) -> Report:
     report = Report()
     for template in data["templates"]:
         text = _bilingual(template, "text")
@@ -328,21 +386,35 @@ def load_announcements(data: dict, *, overwrite: bool = False) -> Report:
             },
             overwrite=overwrite,
         )
+    keys = {template["key"] for template in data["templates"]}
+    _prune(AnnouncementTemplate, report, "template", keys, prune=prune)
     return report
 
 
-def load_all(directory: Path, *, only: set[str] | None = None, overwrite: bool = False) -> Report:
+LOADERS = {
+    "event": load_event,
+    "games": load_games,
+    "schedule": load_schedule,
+    "slides": load_slides,
+    "announcements": load_announcements,
+}
+
+
+@transaction.atomic
+def load_all(
+    directory: Path,
+    *,
+    only: set[str] | None = None,
+    overwrite: bool = False,
+    prune: bool = True,
+) -> Report:
+    """Load the content directory, which is the whole of the seeded content: what has left
+    its files is removed from the database unless `prune` is turned off."""
     data = read_content_dir(directory)
     wanted = only or set(FILES)
     report = Report()
-    if "event" in wanted:
-        report.merge(load_event(data["event"], overwrite=overwrite))
-    if "games" in wanted:
-        report.merge(load_games(data["games"], overwrite=overwrite))
-    if "schedule" in wanted:
-        report.merge(load_schedule(data["schedule"], overwrite=overwrite))
-    if "slides" in wanted:
-        report.merge(load_slides(data["slides"], overwrite=overwrite))
-    if "announcements" in wanted:
-        report.merge(load_announcements(data["announcements"], overwrite=overwrite))
+    # In this order: the schedule refers to games, and slides to phases.
+    for name, loader in LOADERS.items():
+        if name in wanted:
+            report.merge(loader(data[name], overwrite=overwrite, prune=prune))
     return report

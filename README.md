@@ -31,14 +31,23 @@ One image per component, each holding only what that component needs:
 
 - `docker/backend.Dockerfile`: the Django backend (admin, API, integrations).
 - `docker/frontend.Dockerfile`: the React display, served by a rootless nginx
-  that also proxies the backend paths, so kiosks talk to one origin.
-- `docker/minio.Dockerfile`: MinIO, built from its last community release,
-  holding Django's static files and the uploaded background.
+  that also proxies the backend paths and serves Django's collected static
+  files, so kiosks talk to one origin.
+
+Background uploads live in the backend's persistent `media` volume and are
+served through the API. Back up that volume alongside the database. Existing
+S3 background uploads must be copied to `media/background/` before switching
+to this stack; keep their existing relative file names from Display settings.
+Static files are included in the frontend image and need no storage service.
 
 Copy `.env.example` to `.env`, fill it in, then `docker compose up -d` for
 the published images with Postgres, or
 `docker compose -f compose.local.yaml up --build` to build everything from
 this checkout against SQLite. The display is then at <http://localhost:8080/>.
+The production admin requires HTTPS at the host reverse proxy, which must
+set `X-Forwarded-Proto`. The local stack allows plain HTTP only on localhost.
+nginx throttles login POSTs; when using a host proxy, apply a per-client
+login limit there too, where the visitor's address is known.
 
 ## What is here
 
@@ -64,9 +73,9 @@ to the git-ignored `docs/content.md`.
 ## Stack
 
 Django 6 with django-solo, Django REST framework, drf-spectacular and
-django-storages on the backend; React 19, TypeScript, Vite, Tailwind CSS v4
+filesystem uploads on the backend; React 19, TypeScript, Vite, Tailwind CSS v4
 and daisyUI with TanStack Query, Embla Carousel and friends on the display;
-MinIO for the static files. Versions are pinned in `pyproject.toml`,
+nginx for the static files. Versions are pinned in `pyproject.toml`,
 `uv.lock`, `frontend/package.json` and the Dockerfiles.
 
 ## License

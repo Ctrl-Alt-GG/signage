@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useInterval } from "usehooks-ts";
 
+import { serverNow } from "../lib/clock";
+
 export function Clock({ timeZone, lang }: { timeZone: string; lang: "hu" | "en" }) {
   const format = () =>
     new Intl.DateTimeFormat(lang === "hu" ? "hu-HU" : "en-GB", {
@@ -8,7 +10,7 @@ export function Clock({ timeZone, lang }: { timeZone: string; lang: "hu" | "en" 
       minute: "2-digit",
       hour12: false,
       timeZone,
-    }).format(new Date());
+    }).format(new Date(serverNow()));
   const [value, setValue] = useState(format);
   useInterval(() => setValue(format()), 1000);
   return (

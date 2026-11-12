@@ -18,8 +18,6 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-import yaml
-
 ROOT = Path(__file__).resolve().parents[1]
 CONTENT = ROOT / "content"
 OUTPUT = ROOT / "docs" / "content.md"
@@ -30,12 +28,13 @@ from signage.content.lint import (  # noqa: E402
     lint_all,
     lint_text,
 )
+from signage.content.safe_yaml import load_yaml  # noqa: E402
 
 
 def load(name: str) -> dict:
     path = CONTENT / name
     with path.open(encoding="utf-8") as handle:
-        return yaml.safe_load(handle)
+        return load_yaml(handle.read())
 
 
 def lint_glyphs() -> None:

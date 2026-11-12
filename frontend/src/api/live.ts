@@ -41,13 +41,15 @@ export interface MatchRow {
   score2: number;
   start_local: string;
   round: string;
-  status: "live" | "scheduled" | "finished" | "waiting";
+  /** `awaiting`: it has started and its planned time is over, but it has no result yet. */
+  status: "live" | "awaiting" | "scheduled" | "finished" | "waiting";
 }
 
 export interface TournamentLive {
   id?: number | null;
   name?: string;
   live?: MatchRow[];
+  live_page?: { number: number; count: number; first: number; last: number; total: number };
   upcoming?: MatchRow[];
   results?: MatchRow[];
   stale: boolean;

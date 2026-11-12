@@ -1,0 +1,19 @@
+{
+ "data": {
+  "club_id": 1,
+  "name": "CS2 Autumn 2026",
+  "created": "2026-11-12T08:27:27.266428Z",
+  "start_time": "2026-10-03T18:00:00Z",
+  "duration_minutes": 30,
+  "margin_minutes": 5,
+  "dashboard_public": true,
+  "dashboard_endpoint": "cs2-autumn-2026",
+  "logo_path": null,
+  "players_can_be_in_multiple_teams": false,
+  "status": "OPEN",
+  "id": 1,
+  "matches_total": 7,
+  "matches_played": 2,
+  "last_match_end": "2026-10-03T20:20:00Z"
+ }
+}

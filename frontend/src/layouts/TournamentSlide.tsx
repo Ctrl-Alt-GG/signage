@@ -1,6 +1,6 @@
 import type { Pass } from "../api/client";
 import { asLive, type MatchRow, type TournamentLive } from "../api/live";
-import { joined, pick, primaryLang } from "../lib/i18n";
+import { joined, pick, primaryLang, ui } from "../lib/i18n";
 import { Card, EmptyState, Footer, SectionLabel, Title } from "./common";
 
 function Teams({ match, size }: { match: MatchRow; size: number }) {
@@ -18,6 +18,7 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
   const lang = primaryLang(pass.lang);
   const labels = pass.content.labels;
   const liveMatches = live?.live ?? [];
+  const page = live?.live_page;
   const upcoming = live?.upcoming ?? [];
   const results = live?.results ?? [];
   const nothing = liveMatches.length + upcoming.length + results.length === 0;
@@ -32,16 +33,28 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
       ) : (
         <div className="grid min-h-0 flex-1 grid-cols-[1.2fr_1fr_0.9fr] gap-6">
           <Card className="gap-4" accent="#aa0000">
-            <SectionLabel>{joined(labels.live, pass.lang)}</SectionLabel>
+            <div className="flex items-center justify-between gap-3">
+              <SectionLabel>{joined(labels.live, pass.lang)}</SectionLabel>
+              {page && page.count > 1 ? (
+                <span className="shrink-0 font-mono text-[24px] text-ink-muted" aria-label={ui("liveMatchPages", pass.lang)}>
+                  {page.first}-{page.last} / {page.total}
+                </span>
+              ) : null}
+            </div>
             {liveMatches.length === 0 ? (
               <span className="text-[30px] text-ink-dim">{pick(pass.content.empty, lang)}</span>
             ) : (
-              liveMatches.slice(0, 2).map((match) => (
+              liveMatches.map((match) => (
                 <div key={match.id ?? match.team1 + match.team2} className="flex flex-col gap-2">
                   <Teams match={match} size={40} />
                   <span className="flex items-center gap-3 text-[26px] text-ink-muted">
-                    <span className="block size-4 animate-pulse-dot rounded-full bg-brand-500" />
+                    {/* The dot is for a match in its planned time. One that ran past it
+                        has started and has no result yet, which is all that is known. */}
+                    {match.status === "awaiting" ? null : (
+                      <span className="block size-4 animate-pulse-dot rounded-full bg-brand-500" />
+                    )}
                     {match.round} {match.start_local}
+                    {match.status === "awaiting" ? ` · ${ui("awaiting", pass.lang)}` : ""}
                   </span>
                 </div>
               ))

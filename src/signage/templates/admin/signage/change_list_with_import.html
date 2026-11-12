@@ -1,6 +1,8 @@
 {% extends "admin/change_list.html" %}
 {% load i18n %}
 {% block object-tools-items %}
+  {% if import_yaml_url %}
   <li><a href="{{ import_yaml_url }}" class="addlink">{% blocktranslate with name=import_yaml_name %}Import from {{ name }}{% endblocktranslate %}</a></li>
+  {% endif %}
   {{ block.super }}
 {% endblock %}

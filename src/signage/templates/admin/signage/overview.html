@@ -21,7 +21,7 @@
           <td>{{ row.screen.name }}</td>
           <td><a href="{{ row.url }}" target="_blank">{{ row.url }}</a></td>
           <td>{{ row.passes }}</td>
-          <td>{% if row.announcement %}{{ row.announcement.level }}: {{ row.announcement.text.hu }}{% else %}-{% endif %}</td>
+          <td>{% for announcement in row.announcements %}<div>{{ announcement.level }}{% if announcement.takeover %}, {% translate "takeover" %}{% endif %}: {{ announcement.text.hu }}</div>{% empty %}-{% endfor %}</td>
           <td>{% for w in row.warnings %}<div>{{ w }}</div>{% empty %}-{% endfor %}</td>
         </tr>
         <tr><td colspan="5"><iframe src="{{ row.url }}" title="{{ row.screen.name }}" width="640" height="360" style="border:1px solid #444;border-radius:8px;background:#130404" loading="lazy"></iframe></td></tr>
@@ -33,10 +33,10 @@
   <div class="module">
     <h2>{% translate "Integrations" %}</h2>
     <table>
-      <thead><tr><th>{% translate "System" %}</th><th>{% translate "Enabled" %}</th><th>{% translate "Base URL" %}</th><th>{% translate "Fresh" %}</th><th>{% translate "Last fetch" %}</th></tr></thead>
+      <thead><tr><th>{% translate "System" %}</th><th>{% translate "In use" %}</th><th>{% translate "Base URL" %}</th><th>{% translate "Fresh" %}</th><th>{% translate "Last fetch" %}</th><th>{% translate "Problem" %}</th></tr></thead>
       <tbody>
       {% for row in integrations %}
-        <tr><td>{{ row.kind }}</td><td>{{ row.enabled|yesno }}</td><td>{{ row.base_url|default:"-" }}</td><td>{{ row.fresh|yesno }}</td><td>{{ row.last_fetch|default:"-" }}</td></tr>
+        <tr><td>{{ row.kind }}</td><td>{{ row.enabled|yesno }}</td><td>{{ row.base_url|default:"-" }}</td><td>{{ row.fresh|yesno }}</td><td>{{ row.last_fetch|default:"-" }}</td><td>{{ row.error|default:"-" }}</td></tr>
       {% endfor %}
       </tbody>
     </table>

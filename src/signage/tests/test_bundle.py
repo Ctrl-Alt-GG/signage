@@ -1,6 +1,10 @@
 from datetime import timedelta
 
+import httpx
 import pytest
+import respx
+from django.core.cache import cache
+from django.core.files.base import ContentFile
 from django.utils import timezone
 
 from signage.models import (
@@ -12,9 +16,8 @@ from signage.models import (
     Screen,
     ScreenSlide,
     Slide,
-    SlideItem,
 )
-from signage.rendering.bundle import build_bundle
+from signage.rendering.bundle import build_bundle, stamp
 
 
 def _slides(bundle):
@@ -80,6 +83,67 @@ def test_wifi_qr_payload(event, screen, at):
     assert wifi["content"]["link"]["qr_payload"].startswith("WIFI:T:WPA;S:CtrlAltGG;P:")
 
 
+@pytest.mark.parametrize(
+    ("password", "encoded"),
+    [
+        ("ab  cd", "ab  cd"),
+        (" abcd ", " abcd "),
+        ('a:{b};c\\d"', 'a\\:{b}\\;c\\\\d\\"'),
+        ("x" * 128, "x" * 128),
+    ],
+)
+def test_wifi_credentials_survive_admin_save_and_match_the_qr(event, screen, at, password, encoded):
+    from signage.admin import EventForm
+
+    ssid = " LAN  {main}:1 "
+    form = EventForm({"wifi_ssid": ssid, "wifi_password": password}, instance=event)
+    assert form.is_valid(), form.errors
+    form.save()
+    event.refresh_from_db()
+    assert event.wifi_ssid == ssid and event.wifi_password == password
+    _set_phase(event, "play")
+    wifi = next(p for p in build_bundle(screen, at(1))["passes"] if p["slide"] == "wifi")
+    assert wifi["content"]["wifi_credentials"] == {"ssid": ssid, "password": password}
+    assert wifi["content"]["link"]["qr_payload"] == (
+        f"WIFI:T:WPA;S: LAN  {{main}}\\:1 ;P:{encoded};;"
+    )
+
+
+def test_open_wifi_needs_no_password(event, screen, at):
+    event.wifi_security = "nopass"
+    event.wifi_password = ""
+    event.save()
+    _set_phase(event, "play")
+    wifi = next(p for p in build_bundle(screen, at(1))["passes"] if p["slide"] == "wifi")
+    assert wifi["content"]["wifi_credentials"] == {"ssid": "CtrlAltGG", "password": None}
+    assert wifi["content"]["link"]["qr_payload"] == "WIFI:T:nopass;S:CtrlAltGG;;"
+
+
+def test_every_live_match_gets_a_consecutive_pass_including_in_previews(
+    event, screen, at, monkeypatch
+):
+    matches = [{"id": i, "team1": f"ALPHA-{i}", "team2": f"BETA-{i}"} for i in range(1, 5)]
+    monkeypatch.setattr(
+        "signage.rendering.bundle.live_data",
+        lambda *args: {"live": matches, "upcoming": [], "results": [], "stale": False},
+    )
+    for lang in ("hu", "en", "both"):
+        passes = build_bundle(screen, at(1), preview_slide="tournament_live", preview_lang=lang)[
+            "passes"
+        ]
+        assert [p["key"] for p in passes] == [
+            f"tournament_live:{lang}:page-1",
+            f"tournament_live:{lang}:page-2",
+        ]
+        assert [p["lang"] for p in passes] == [lang, lang]
+        assert [[m["id"] for m in p["live"]["live"]] for p in passes] == [[1, 2], [3, 4]]
+        assert [p["live"]["live_page"] for p in passes] == [
+            {"number": 1, "count": 2, "first": 1, "last": 2, "total": 4},
+            {"number": 2, "count": 2, "first": 3, "last": 4, "total": 4},
+        ]
+        assert all(p["duration_ms"] == 20000 for p in passes)
+
+
 def test_countdown_only_before_the_start(event, screen, at):
     _set_phase(event, "setup")
     assert "doors_countdown" in _slides(build_bundle(screen, at(-2)))
@@ -93,55 +157,69 @@ def test_preview_renders_one_pass(event, screen, at):
     assert bundle["preview"] is True
 
 
-def test_version_changes_with_content(event, screen, at):
-    _set_phase(event, "play")
-    before = build_bundle(screen, at(1))["version"]
-    slide = Slide.objects.get(pk="welcome")
-    slide.title_hu = "Más cím"
-    slide.save()
-    assert build_bundle(screen, at(1))["version"] != before
-
-
-def test_version_follows_items_event_and_stage(event, screen, at):
+def test_stage_follows_the_display_settings(event, screen, at):
     _set_phase(event, "play")
     bundle = build_bundle(screen, at(1))
-    version = bundle["version"]
-    assert build_bundle(screen, at(1))["version"] == version
     assert bundle["stage"]["safe"] == {"x": 96, "y": 204, "width": 1728, "height": 564}
-
-    shown = {p["slide"] for p in bundle["passes"]}
-    item = SlideItem.objects.filter(slide__key__in=shown).first()
-    item.text_hu = "Szerkesztett pont"
-    item.save()
-    after_item = build_bundle(screen, at(1))["version"]
-    assert after_item != version
-
-    event.tagline = "Új szlogen"
-    event.save()
-    after_event = build_bundle(screen, at(1))["version"]
-    assert after_event != after_item
-
     display = DisplaySettings.get_solo()
     display.safe_x = 120
+    display.safe_width = 1700
     display.save()
-    bundle = build_bundle(screen, at(1))
-    assert bundle["version"] != after_event
-    assert bundle["stage"]["safe"]["x"] == 120
+    assert build_bundle(screen, at(1))["stage"]["safe"]["x"] == 120
 
 
-def test_announcement_precedence_and_takeover(event, screen, at):
+def test_background_address_changes_with_the_artwork(event, screen, at, settings, tmp_path):
+    """A running screen only fetches the background again when its address changes."""
+    settings.MEDIA_ROOT = tmp_path
+    bundled = build_bundle(screen, at(1))["stage"]["background_url"]
+    assert bundled == "/api/v1/display/background.svg?v=bundled"
+
+    display = DisplaySettings.get_solo()
+    display.background.save("venue.svg", ContentFile(b"<svg/>"))
+    first = build_bundle(screen, at(1))["stage"]["background_url"]
+    display.background.save("venue.svg", ContentFile(b"<svg></svg>"))
+    second = build_bundle(screen, at(1))["stage"]["background_url"]
+    assert len({bundled, first, second}) == 3
+
+
+def test_announcements_are_listed_most_important_first(event, screen, at):
     _set_phase(event, "play")
     now = at(1)
-    Announcement.objects.create(text_hu="info", text_en="info", level="info", starts_at=now)
+    info = Announcement.objects.create(text_hu="info", text_en="info", level="info", starts_at=now)
+    warning = Announcement.objects.create(
+        text_hu="áram", text_en="power", level="warning", starts_at=now
+    )
     urgent = Announcement.objects.create(
         text_hu="tűz", text_en="fire", level="urgent", takeover=True, starts_at=now
     )
-    bundle = build_bundle(screen, now)
-    assert bundle["announcement"]["id"] == str(urgent.pk)
-    assert bundle["announcement"]["takeover"] is True
+    announcements = build_bundle(screen, now)["announcements"]
+    # All of them are there: a second announcement no longer waits for the first to end.
+    assert [a["id"] for a in announcements] == [str(urgent.pk), str(warning.pk), str(info.pk)]
+    assert announcements[0]["takeover"] is True
+
     urgent.ends_at = now - timedelta(seconds=1)
     urgent.save()
-    assert build_bundle(screen, now)["announcement"]["level"] == "info"
+    assert [a["level"] for a in build_bundle(screen, now)["announcements"]] == ["warning", "info"]
+
+
+def test_ended_and_future_announcements_are_not_loaded(
+    event, screen, at, django_assert_num_queries
+):
+    now = at(1)
+    for index in range(30):
+        Announcement.objects.create(
+            text_hu=f"régi {index}",
+            text_en=f"old {index}",
+            starts_at=now - timedelta(hours=2),
+            ends_at=now - timedelta(hours=1),
+        )
+    Announcement.objects.create(text_hu="később", text_en="later", starts_at=at(2))
+    current = Announcement.objects.create(text_hu="most", text_en="now", starts_at=now)
+    from signage.rendering.bundle import active_announcements
+
+    # One query for the announcements and one for their screens, however many have ended.
+    with django_assert_num_queries(2):
+        assert active_announcements(now) == [current]
 
 
 def test_announcement_can_target_one_screen(event, screen, at):
@@ -149,8 +227,60 @@ def test_announcement_can_target_one_screen(event, screen, at):
     other = Screen.objects.create(slug="tournament", name="Tournament")
     announcement = Announcement.objects.create(text_hu="x", text_en="x", starts_at=now)
     announcement.screens.add(other)
-    assert build_bundle(screen, now)["announcement"] is None
-    assert build_bundle(other, now)["announcement"]["id"] == str(announcement.pk)
+    assert build_bundle(screen, now)["announcements"] == []
+    assert [a["id"] for a in build_bundle(other, now)["announcements"]] == [str(announcement.pk)]
+
+
+def test_phase_and_screen_checks_use_what_was_loaded(
+    event, screen, at, django_assert_max_num_queries
+):
+    """The rotation is built on every poll of every screen. Its cost does not grow with the
+    number of slides."""
+    _set_phase(event, "play")
+    now = at(1)
+    assert len(build_bundle(screen, now)["passes"]) > 10
+    with django_assert_max_num_queries(16):
+        build_bundle(screen, now)
+
+
+@respx.mock
+def test_stream_thumbnails_get_a_new_address_with_every_refresh(
+    event, screen, at, settings, fixture_json
+):
+    """Every slide stays loaded on a screen, so a thumbnail at a fixed address would show
+    its first frame all day."""
+    cache.clear()
+    _set_phase(event, "play")
+    row = Integration.objects.get(kind="streams")
+    row.enabled = True
+    row.base_url = "https://streams.example/api/v1"
+    row.save()
+    respx.get("https://streams.example/api/v1/streams/").mock(
+        return_value=httpx.Response(200, json=fixture_json("streams_list.json"))
+    )
+    ScreenSlide.objects.create(screen=screen, slide=Slide.objects.get(pk="streams_live"), order=0)
+
+    def thumbnails(now):
+        [streams] = [p for p in build_bundle(screen, now)["passes"] if p["slide"] == "streams_live"]
+        return [channel["thumbnail_url"] for channel in streams["live"]["live"]]
+
+    period = timedelta(seconds=settings.SIGNAGE_THUMBNAIL_CACHE_SECONDS)
+    first, later = thumbnails(at(1)), thumbnails(at(1) + period)
+    assert first[0].startswith(
+        "/api/v1/display/thumbnails/0192f0a1-0000-7000-8000-000000000001/?v="
+    )
+    assert first != later
+    cache.clear()
+
+
+def test_stamp_gives_every_answer_its_own_time(event, screen, at):
+    bundle = build_bundle(screen, at(1))
+    later = stamp(bundle, at(1) + timedelta(seconds=30))
+    assert later["passes"] is bundle["passes"]
+    assert later["clock"]["now"] != bundle["clock"]["now"]
+    assert (
+        later["clock"]["now"].endswith("+02:00") and later["clock"]["timezone"] == "Europe/Budapest"
+    )
 
 
 @pytest.mark.django_db

@@ -2,6 +2,7 @@ import Countdown, { type CountdownRenderProps } from "react-countdown";
 
 import type { Pass } from "../api/client";
 import { asLive, type CountdownLive } from "../api/live";
+import { serverNow } from "../lib/clock";
 import { UI, ui } from "../lib/i18n";
 import { Body, Kicker, Title } from "./common";
 
@@ -43,7 +44,8 @@ export function CountdownSlide({ pass }: { pass: Pass }) {
     <div className="flex h-full flex-col justify-center gap-6 pr-[280px]">
       <Kicker pass={pass} />
       <Title pass={pass} size={80} />
-      {live ? <Countdown date={new Date(live.target)} renderer={renderer} /> : null}
+      {/* Counted against the server's clock: the kiosk's own may be minutes off. */}
+      {live ? <Countdown date={new Date(live.target)} now={serverNow} renderer={renderer} /> : null}
       <Body pass={pass} size={40} />
     </div>
   );

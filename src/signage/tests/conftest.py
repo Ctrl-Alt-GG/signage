@@ -26,6 +26,7 @@ def content(db):
     report = load_all(settings.SIGNAGE_CONTENT_DIR)
     event = Event.get_solo()
     event.wifi_ssid = "CtrlAltGG"
+    event.wifi_password = "only-for-the-tests"
     event.assembly_point_hu = "Az épület előtt"
     event.assembly_point_en = "In front of the building"
     event.save()

@@ -1,4 +1,24 @@
-# Rendered by the nginx image entrypoint; ${BACKEND_URL} is the only substituted variable.
+# Rendered by the nginx image entrypoint together with backend.inc.template; ${BACKEND_URL}
+# is the only substituted variable.
+
+# The host's reverse proxy terminates TLS and says so in X-Forwarded-Proto. Django needs
+# that answer, not this server's own scheme, which is always http. Without a proxy in
+# front the header is absent and the scheme of this connection is the truth.
+map $http_x_forwarded_proto $signage_forwarded_proto {
+    default $http_x_forwarded_proto;
+    ""      $scheme;
+}
+
+# The API is anonymous, and some of its answers are built from upstream systems. A screen
+# asks every few seconds; this leaves room for a wall of them behind one address and
+# stops a single client from doing more.
+limit_req_zone $binary_remote_addr zone=signage_api:1m rate=20r/s;
+map $request_method $signage_login_key {
+    default "";
+    POST $binary_remote_addr;
+}
+limit_req_zone $signage_login_key zone=signage_login:1m rate=6r/m;
+
 server {
     listen 8080;
     server_name _;
@@ -13,24 +33,47 @@ server {
     # Hashed build output: cache forever.
     location /assets/ {
         add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options "nosniff";
         try_files $uri =404;
     }
 
-    # Everything the backend owns. The regex location keeps the request URI intact.
-    location ~ ^/(api|admin|health)/ {
-        proxy_pass ${BACKEND_URL};
-        proxy_http_version 1.1;
-        proxy_set_header Host $http_host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_read_timeout 60s;
-        client_max_body_size 20m;
+    # The static files of the Django admin, collected when this image was built.
+    location /static/ {
+        alias /usr/share/nginx/static/;
+        add_header Cache-Control "public, max-age=3600";
+        add_header X-Content-Type-Options "nosniff";
+        try_files $uri =404;
+    }
+
+    location = /admin {
+        return 301 /admin/;
+    }
+
+    location = /admin/login/ {
+        limit_req zone=signage_login burst=5 nodelay;
+        limit_req_status 429;
+        include /etc/nginx/conf.d/backend.inc;
+    }
+
+    location /api/ {
+        limit_req zone=signage_api burst=40 nodelay;
+        limit_req_status 429;
+        include /etc/nginx/conf.d/backend.inc;
+    }
+
+    # Everything else the backend owns. The regex location keeps the request URI intact.
+    location ~ ^/(admin|health)/ {
+        include /etc/nginx/conf.d/backend.inc;
     }
 
     # The single-page app: every other path renders index.html and the router takes over.
+    # It loads nothing from other origins, and the admin overview is the only page that
+    # frames it.
     location / {
         add_header Cache-Control "no-cache";
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'";
+        add_header Referrer-Policy "same-origin";
+        add_header X-Content-Type-Options "nosniff";
         try_files $uri /index.html;
     }
 }

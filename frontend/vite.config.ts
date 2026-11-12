@@ -6,11 +6,14 @@ import tailwindcss from "@tailwindcss/vite";
 // proxies the backend paths. In development Vite plays that role: it serves the app and
 // forwards the same paths to the Django development server.
 const backend = process.env.BACKEND_URL ?? "http://localhost:8000";
+// Like nginx, the proxy keeps the Host the browser asked for. Django compares it with the
+// Origin of a form post, so with the backend's own host there the admin login is refused.
+const toBackend = { target: backend, changeOrigin: false, xfwd: true };
 const proxy = {
-  "/api": backend,
-  "/admin": backend,
-  "/health": backend,
-  "/static": backend,
+  "/api": toBackend,
+  "/admin": toBackend,
+  "/health": toBackend,
+  "/static": toBackend,
 };
 
 export default defineConfig({

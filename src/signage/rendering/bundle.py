@@ -1,15 +1,15 @@
 """Build the JSON bundle a screen polls: the slides in rotation, expanded into language
-passes, plus the active announcement, the phase and the clock."""
+passes, plus the active announcements, the phase and the clock."""
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from django.conf import settings
+from django.db.models import Q
 from django.urls import reverse
 
 from signage.integrations.bracket import BracketClient
@@ -50,39 +50,62 @@ def _wifi_payload(event: Event) -> str:
     return f"WIFI:T:{event.wifi_security};S:{ssid};P:{password};;"
 
 
-def _resolved_pair(slide: Slide, field: str, event: Event) -> dict[str, str]:
-    return {lang: resolve(slide.text(field, lang), event, lang) for lang in LANGS}
+# What the event fills into {placeholders}, per language.
+Values = dict[str, dict[str, str]]
 
 
-def _resolved_items(items, event: Event) -> list[dict[str, str]]:
+def placeholder_values(event: Event) -> Values:
+    return {lang: event.placeholder_values(lang) for lang in LANGS}
+
+
+def _resolved_pair(slide: Slide, field: str, values: Values) -> dict[str, str]:
+    return {lang: resolve(slide.text(field, lang), values[lang]) for lang in LANGS}
+
+
+def _resolved_items(items, values: Values) -> list[dict[str, str]]:
     return [
         {
-            "hu": resolve(item.text_hu, event, "hu"),
-            "en": resolve(item.text_en, event, "en"),
+            "hu": resolve(item.text_hu, values["hu"]),
+            "en": resolve(item.text_en, values["en"]),
             "icon": item.icon,
         }
         for item in items
     ]
 
 
-def slide_content(slide: Slide, event: Event) -> dict[str, Any]:
+def slide_content(slide: Slide, event: Event, values: Values | None = None) -> dict[str, Any]:
+    values = values or placeholder_values(event)
     items = list(slide.items.all())
     content: dict[str, Any] = {
-        "kicker": _resolved_pair(slide, "kicker", event),
-        "title": _resolved_pair(slide, "title", event),
-        "body": _resolved_pair(slide, "body", event),
-        "footer": _resolved_pair(slide, "footer", event),
-        "empty": _resolved_pair(slide, "empty", event),
-        "items": _resolved_items([i for i in items if i.column == 1], event),
+        "kicker": _resolved_pair(slide, "kicker", values),
+        "title": _resolved_pair(slide, "title", values),
+        "body": _resolved_pair(slide, "body", values),
+        "footer": (
+            {lang: "" for lang in LANGS}
+            if slide.layout == Slide.Layout.CREDENTIALS
+            else _resolved_pair(slide, "footer", values)
+        ),
+        "empty": _resolved_pair(slide, "empty", values),
+        "items": _resolved_items([i for i in items if i.column == 1], values),
         "columns": [],
         "labels": slide.labels or {},
         "link": None,
+        "wifi_credentials": None,
     }
+    if slide.layout == Slide.Layout.CREDENTIALS:
+        content["wifi_credentials"] = {
+            "ssid": resolve("{wifi_ssid}", values["hu"]),
+            "password": (
+                None
+                if event.wifi_security == "nopass"
+                else resolve("{wifi_password}", values["hu"])
+            ),
+        }
     if slide.layout == Slide.Layout.SPLIT:
         content["columns"] = [
             {
-                "title": _resolved_pair(slide, f"column{column}_title", event),
-                "items": _resolved_items([i for i in items if i.column == column], event),
+                "title": _resolved_pair(slide, f"column{column}_title", values),
+                "items": _resolved_items([i for i in items if i.column == column], values),
             }
             for column in (1, 2)
         ]
@@ -92,7 +115,7 @@ def slide_content(slide: Slide, event: Event) -> dict[str, Any]:
         qr_payload = _wifi_payload(event) if url == "wifi" else url
         content["link"] = {
             "url": "" if url == "wifi" else url,
-            "label": _resolved_pair(slide, "link_label", event),
+            "label": _resolved_pair(slide, "link_label", values),
             "qr_payload": qr_payload if slide.link_qr else "",
         }
     return content
@@ -121,10 +144,20 @@ def live_data(slide: Slide, event: Event, now: datetime, warnings: list[str]) ->
     # as stale (Streams does), so neither case shows as fresh.
     data["stale"] = bool(result.stale) or data.get("source_status") == "stale"
     if slide.source == Slide.Source.STREAMS:
-        for channel in data.get("live", []):
-            channel["thumbnail_url"] = reverse(
-                "signage-api:thumbnail", kwargs={"stream_id": channel["id"]}
-            )
+        # The address of a thumbnail never changes, and a screen keeps every slide loaded,
+        # so its browser would show the first frame for the rest of the day. The version
+        # moves on whenever a newer frame can be had.
+        version = int(now.timestamp() // settings.SIGNAGE_THUMBNAIL_CACHE_SECONDS)
+        data["live"] = [
+            {
+                **channel,
+                "thumbnail_url": (
+                    reverse("signage-api:thumbnail", kwargs={"stream_id": channel["id"]})
+                    + f"?v={version}"
+                ),
+            }
+            for channel in data.get("live", [])
+        ]
     return data
 
 
@@ -140,20 +173,46 @@ def select_slides(screen: Screen, phase: Phase | None, now: datetime) -> list[Sl
     return [s for s in candidates if s.in_phase(phase) and s.is_valid_at(now)]
 
 
-def active_announcement(screen: Screen, now: datetime) -> Announcement | None:
-    rank = {"urgent": 0, "warning": 1, "info": 2}
-    candidates = [
-        a
-        for a in Announcement.objects.filter(enabled=True, starts_at__lte=now).prefetch_related(
-            "screens"
-        )
-        if a.is_active(now) and (not a.screens.exists() or a.screens.filter(pk=screen.pk).exists())
-    ]
-    candidates.sort(key=lambda a: (rank[a.level], -a.created_at.timestamp()))
-    return candidates[0] if candidates else None
+LEVEL_RANK = {"urgent": 0, "warning": 1, "info": 2}
 
 
-def _mirrored_announcement(now: datetime) -> dict | None:
+def active_announcements(now: datetime) -> list[Announcement]:
+    """Every announcement that is on at `now`, the most important first. Announcements that
+    have ended stay in the database for the record; they are not loaded."""
+    rows = list(
+        Announcement.objects.filter(enabled=True, starts_at__lte=now)
+        .filter(Q(ends_at__isnull=True) | Q(ends_at__gt=now))
+        .prefetch_related("screens")
+    )
+    # A takeover replaces the rotation, so it comes before a bar of the same level.
+    rows.sort(key=lambda a: (LEVEL_RANK[a.level], not a.takeover, -a.created_at.timestamp()))
+    return rows
+
+
+def announcement_view(announcement: Announcement) -> dict[str, Any]:
+    return {
+        "id": str(announcement.pk),
+        "level": announcement.level,
+        "takeover": announcement.takeover,
+        "text": announcement.pair("text"),
+        "ends_at": announcement.ends_at.isoformat() if announcement.ends_at else None,
+    }
+
+
+def screen_announcements(screen: Screen, now: datetime) -> list[dict[str, Any]]:
+    """What a screen announces: the announcements for every screen and those for this one,
+    then the one mirrored from Projectile."""
+    views = []
+    for announcement in active_announcements(now):
+        screens = announcement.screens.all()
+        if not screens or any(candidate.pk == screen.pk for candidate in screens):
+            views.append(announcement_view(announcement))
+    if mirrored := _mirrored_announcement():
+        views.append(mirrored)
+    return views
+
+
+def _mirrored_announcement() -> dict | None:
     config = Integration.objects.filter(kind=Integration.Kind.PROJECTILE).first()
     if not config or not config.mirror_announcement or not config.is_configured:
         return None
@@ -170,7 +229,13 @@ def _mirrored_announcement(now: datetime) -> dict | None:
     }
 
 
-def _passes_for(slide: Slide, screen: Screen, content: dict, live: dict | None) -> list[dict]:
+def _passes_for(
+    slide: Slide,
+    screen: Screen,
+    content: dict,
+    live: dict | None,
+    preview_lang: str | None = None,
+) -> list[dict]:
     duration_ms = slide.duration_seconds * 1000
     base = {
         "slide": slide.key,
@@ -180,13 +245,42 @@ def _passes_for(slide: Slide, screen: Screen, content: dict, live: dict | None) 
         "content": content,
         "live": live,
     }
-    if screen.language_mode in LANGS:
-        return [
-            {**base, "key": f"{slide.key}:{screen.language_mode}", "lang": screen.language_mode}
-        ]
-    if slide.bilingual_mode == Slide.BilingualMode.STACKED:
-        return [{**base, "key": f"{slide.key}:both", "lang": "both"}]
-    return [{**base, "key": f"{slide.key}:{lang}", "lang": lang} for lang in LANGS]
+    if preview_lang in (*LANGS, "both"):
+        langs = [preview_lang]
+    elif screen.language_mode in LANGS:
+        langs = [screen.language_mode]
+    elif slide.bilingual_mode == Slide.BilingualMode.STACKED:
+        langs = ["both"]
+    else:
+        langs = list(LANGS)
+
+    # Pages are ordinary consecutive passes, so the carousel shows every live match
+    # during one rotation. Hidden, mounted slides need no timer of their own.
+    matches = live.get("live", []) if live and slide.layout == Slide.Layout.TOURNAMENT else []
+    page_size = 2
+    page_count = max(1, (len(matches) + page_size - 1) // page_size)
+    passes = []
+    for page in range(page_count):
+        first = page * page_size
+        page_live = live
+        if matches:
+            page_live = {
+                **live,
+                "live": matches[first : first + page_size],
+                "live_page": {
+                    "number": page + 1,
+                    "count": page_count,
+                    "first": first + 1,
+                    "last": min(first + page_size, len(matches)),
+                    "total": len(matches),
+                },
+            }
+        suffix = f":page-{page + 1}" if page_count > 1 else ""
+        for lang in langs:
+            passes.append(
+                {**base, "live": page_live, "key": f"{slide.key}:{lang}{suffix}", "lang": lang}
+            )
+    return passes
 
 
 def build_bundle(
@@ -208,40 +302,28 @@ def build_bundle(
     else:
         slides = select_slides(screen, phase, now)
 
+    values = placeholder_values(event)
     passes: list[dict] = []
     for slide in slides:
         live = live_data(slide, event, now, warnings)
         if slide.is_live and live is None and not preview_slide:
             continue
         try:
-            content = slide_content(slide, event)
+            content = slide_content(slide, event, values)
         except UnresolvedPlaceholderError as error:
             warnings.append(f"{slide.key}: unresolved placeholder {error.name}")
             if not preview_slide:
                 continue
             content = {"title": slide.pair("title"), "items": [], "columns": [], "labels": {}}
-        slide_passes = _passes_for(slide, screen, content, live)
-        if preview_slide and preview_lang in (*LANGS, "both"):
-            slide_passes = [
-                {**slide_passes[0], "key": f"{slide.key}:{preview_lang}", "lang": preview_lang}
-            ]
+        slide_passes = _passes_for(
+            slide, screen, content, live, preview_lang if preview_slide else None
+        )
         passes.extend(slide_passes)
 
-    announcement_obj = None if preview_slide else active_announcement(screen, now)
-    announcement: dict | None = None
-    if announcement_obj:
-        announcement = {
-            "id": str(announcement_obj.pk),
-            "level": announcement_obj.level,
-            "takeover": announcement_obj.takeover,
-            "text": announcement_obj.pair("text"),
-            "ends_at": announcement_obj.ends_at.isoformat() if announcement_obj.ends_at else None,
-        }
-    elif not preview_slide:
-        announcement = _mirrored_announcement(now)
+    announcements = [] if preview_slide else screen_announcements(screen, now)
 
     display = DisplaySettings.get_solo()
-    bundle = {
+    return {
         "generated_at": now.astimezone(event.tz).isoformat(),
         "screen": {
             "slug": screen.slug,
@@ -268,25 +350,23 @@ def build_bundle(
                 "width": display.safe_width,
                 "height": display.safe_height,
             },
+            # The address changes with the artwork, so a screen that is already running
+            # fetches a newly uploaded background instead of keeping the one it has.
+            "background_url": (
+                reverse("signage-api:background") + f"?v={display.background_version}"
+            ),
         },
-        "announcement": announcement,
+        # Every announcement that is on, the most important first. A screen shows the
+        # first takeover alone, and otherwise the bars in turn.
+        "announcements": announcements,
         "passes": passes,
         "warnings": warnings,
         "preview": bool(preview_slide),
-        "default_screen": settings.SIGNAGE_DEFAULT_SCREEN,
     }
-    bundle["version"] = bundle_version(bundle)
-    return bundle
 
 
-VOLATILE_KEYS = frozenset({"version", "generated_at", "clock"})
-
-
-def bundle_version(bundle: dict[str, Any]) -> str:
-    """ETag value: a hash of everything in the response except the current time, so an
-    edited inline item, event value, live row or stage setting changes it and an unchanged
-    bundle keeps it."""
-    stable = {key: value for key, value in bundle.items() if key not in VOLATILE_KEYS}
-    stable["timezone"] = bundle["clock"]["timezone"]
-    payload = json.dumps(stable, sort_keys=True, default=str).encode()
-    return hashlib.sha256(payload).hexdigest()[:16]
+def stamp(bundle: dict[str, Any], now: datetime) -> dict[str, Any]:
+    """A bundle with the time of this answer. Bundles are kept for a moment to be shared
+    between screens, while each screen sets its clock by the time in the one it gets."""
+    local = now.astimezone(ZoneInfo(bundle["clock"]["timezone"])).isoformat()
+    return {**bundle, "generated_at": local, "clock": {**bundle["clock"], "now": local}}

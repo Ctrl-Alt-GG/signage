@@ -51,6 +51,7 @@ class StageSerializer(serializers.Serializer):
     width = serializers.IntegerField()
     height = serializers.IntegerField()
     safe = SafeAreaSerializer()
+    background_url = serializers.CharField()
 
 
 class AnnouncementSerializer(serializers.Serializer):
@@ -76,6 +77,11 @@ class SlideLinkSerializer(serializers.Serializer):
     qr_payload = serializers.CharField(allow_blank=True)
 
 
+class WifiCredentialsSerializer(serializers.Serializer):
+    ssid = serializers.CharField(trim_whitespace=False)
+    password = serializers.CharField(allow_blank=True, allow_null=True, trim_whitespace=False)
+
+
 class SlideContentSerializer(serializers.Serializer):
     kicker = BilingualSerializer(required=False)
     title = BilingualSerializer()
@@ -86,6 +92,7 @@ class SlideContentSerializer(serializers.Serializer):
     columns = SlideColumnSerializer(many=True)
     labels = serializers.DictField(child=BilingualSerializer())
     link = SlideLinkSerializer(allow_null=True, required=False)
+    wifi_credentials = WifiCredentialsSerializer(allow_null=True, required=False)
 
 
 class PassSerializer(serializers.Serializer):
@@ -100,18 +107,16 @@ class PassSerializer(serializers.Serializer):
 
 
 class BundleSerializer(serializers.Serializer):
-    version = serializers.CharField()
     generated_at = serializers.DateTimeField()
     screen = ScreenSerializer()
     phase = PhaseSerializer(allow_null=True)
     clock = ClockSerializer()
     event = EventSummarySerializer()
     stage = StageSerializer()
-    announcement = AnnouncementSerializer(allow_null=True)
+    announcements = AnnouncementSerializer(many=True)
     passes = PassSerializer(many=True)
     warnings = serializers.ListField(child=serializers.CharField())
     preview = serializers.BooleanField()
-    default_screen = serializers.CharField()
 
 
 class GameRefSerializer(serializers.Serializer):

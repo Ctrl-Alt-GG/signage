@@ -4,10 +4,12 @@ status; only live ones go on the wall."""
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 
 from signage.integrations.base import IntegrationClient
 from signage.models import Integration
+
+MAX_REDIRECTS = 3
 
 
 def parse_streams(payload: dict[str, Any]) -> dict[str, Any]:
@@ -41,19 +43,30 @@ class StreamsClient(IntegrationClient[dict[str, Any]]):
                 return channel["thumbnail_url"] or None
         return None
 
-    def fetch_bytes(self, url: str) -> tuple[bytes, str]:
-        """Fetch a thumbnail from the Streams origin only. The client carries the Streams
-        credentials, so a thumbnail URL pointing anywhere else is refused rather than
-        fetched; relative URLs resolve against the configured base URL."""
+    def thumbnail_target(self, url: str) -> str:
+        """Where a thumbnail is fetched from: its path, on the address Streams was configured
+        with. Streams names its public address in the URLs it hands out, which need not be
+        the one this server reaches it by. Only the path is taken from the answer, so the
+        credentials this client carries never go anywhere else."""
         assert self.config is not None
-        target = urljoin(self.config.base_url + "/", url)
-        base, dest = urlsplit(self.config.base_url), urlsplit(target)
-        if dest.scheme not in ("http", "https") or (dest.scheme, dest.netloc) != (
-            base.scheme,
-            base.netloc,
-        ):
-            raise ValueError(f"thumbnail outside the Streams origin: {target}")
+        base, wanted = urlsplit(self.config.base_url), urlsplit(url)
+        if wanted.scheme not in ("", "http", "https") or not wanted.path.startswith("/"):
+            raise ValueError(f"not a thumbnail address: {url}")
+        query = f"?{wanted.query}" if wanted.query else ""
+        return f"{base.scheme}://{base.netloc}{wanted.path}{query}"
+
+    def fetch_bytes(self, url: str) -> tuple[bytes, str]:
+        """Fetch a thumbnail, following redirects only as far as they stay with Streams."""
+        target = self.thumbnail_target(url)
         with self.client() as client:
-            response = client.get(target, headers={"Accept": "image/*"})
+            for _ in range(MAX_REDIRECTS + 1):
+                response = client.get(target, headers={"Accept": "image/*"})
+                if not response.is_redirect:
+                    break
+                target = self.thumbnail_target(response.headers.get("location", ""))
             response.raise_for_status()
-            return response.content, response.headers.get("content-type", "image/jpeg")
+        content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
+        # The answer is passed on from this origin, so it has to be a picture.
+        if not content_type.startswith("image/"):
+            raise ValueError(f"thumbnail is {content_type or 'of an unknown type'}, not a picture")
+        return response.content, content_type
