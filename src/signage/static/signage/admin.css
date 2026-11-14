@@ -1,0 +1,32 @@
+/* The admin's Content-Security-Policy refuses style attributes, so the styles of the
+   signage pages in the admin live here. */
+
+.signage-preview {
+  max-width: 480px;
+  border: 1px solid #444;
+  border-radius: 8px;
+}
+
+.signage-screen-preview {
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #130404;
+}
+
+.signage-phase-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.signage-preview-text {
+  padding: 0 1rem;
+}
+
+.signage-swatch {
+  vertical-align: middle;
+}
+
+.signage-swatch text {
+  font: 600 12px/1 system-ui, sans-serif;
+}

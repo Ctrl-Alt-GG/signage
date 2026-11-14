@@ -25,6 +25,19 @@ def test_auto_phase_follows_the_clock(event, at):
     assert resolve_phase(event, event.ends_at + timedelta(days=1)).key == "teardown"
 
 
+def test_auto_phase_goes_by_the_start_times_not_by_the_admin_order(event, at):
+    """An organizer moves start times in the admin list without renumbering the order."""
+    event.phase_mode = Event.PhaseMode.AUTO
+    event.save()
+    for order, phase in enumerate(Phase.objects.order_by("-order")):
+        phase.order = order
+        phase.save()
+    assert resolve_phase(event, at(-10)).key == "setup"
+    assert resolve_phase(event, at(0)).key == "play"
+    assert resolve_phase(event, at(8)).key == "late"
+    assert resolve_phase(event, event.ends_at + timedelta(days=1)).key == "teardown"
+
+
 def test_schedule_before_the_first_entry(event, at):
     view = build_schedule_view(event, at(-1))
     assert view.now == []

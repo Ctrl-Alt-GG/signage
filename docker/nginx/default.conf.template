@@ -1,12 +1,27 @@
 # Rendered by the nginx image entrypoint together with backend.inc.template; ${BACKEND_URL}
-# is the only substituted variable.
+# and ${TRUSTED_PROXY} are the substituted variables.
 
-# The host's reverse proxy terminates TLS and says so in X-Forwarded-Proto. Django needs
-# that answer, not this server's own scheme, which is always http. Without a proxy in
-# front the header is absent and the scheme of this connection is the truth.
-map $http_x_forwarded_proto $signage_forwarded_proto {
-    default $http_x_forwarded_proto;
-    ""      $scheme;
+# The host's reverse proxy reaches this server through the compose network's gateway,
+# TRUSTED_PROXY, so every request it passes on comes from that one address. Its
+# X-Forwarded-For names the client, which the limits below then count instead of the
+# gateway. Anyone else reaches the published port with their own address and cannot
+# choose one by sending the header.
+set_real_ip_from ${TRUSTED_PROXY};
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+
+geo $realip_remote_addr $signage_from_proxy {
+    default 0;
+    ${TRUSTED_PROXY} 1;
+}
+
+# The proxy terminates TLS and says so in X-Forwarded-Proto. Django needs that answer,
+# not this server's own scheme, which is always http. From anyone but the proxy the header
+# is ignored, and the scheme of this connection is the truth.
+map "$signage_from_proxy:$http_x_forwarded_proto" $signage_forwarded_proto {
+    default   $scheme;
+    "1:https" https;
+    "1:http"  http;
 }
 
 # The API is anonymous, and some of its answers are built from upstream systems. A screen

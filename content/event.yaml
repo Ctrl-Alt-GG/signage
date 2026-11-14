@@ -1,8 +1,8 @@
 # Event facts for the signage. Loaded by `manage.py loadcontent` into the Event
-# model, then editable in the Django admin. The admin copy wins after the first
-# load: while the event still has neither a venue name nor a Wi-Fi network,
-# loadcontent fills in everything below, and after that it leaves the event
-# alone unless `--overwrite` is passed, which replaces all of it.
+# model, then editable in the Django admin. The admin copy wins once the event
+# is saved there: until then loadcontent fills in everything below on every
+# run, and after that it leaves the event alone unless `--overwrite` is passed,
+# which replaces all of it.
 #
 # Values below were read from the sibling repositories on 2026-10-06
 # (homepage, care, link-collection, network-services). Anything marked

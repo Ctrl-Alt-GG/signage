@@ -22,6 +22,7 @@ export const UI = {
     audio: "hang",
     more: (n: number) => `+${n} további szerver`,
     moreStreams: (n: number) => `+${n} további adás`,
+    moreEntries: (n: number) => `+${n} további program`,
     started: "Elkezdődött!",
     awaiting: "eredményre vár",
     offline: "nincs kapcsolat",
@@ -45,6 +46,7 @@ export const UI = {
     audio: "audio",
     more: (n: number) => `+${n} more servers`,
     moreStreams: (n: number) => `+${n} more streams`,
+    moreEntries: (n: number) => `+${n} more`,
     started: "We are live!",
     awaiting: "awaiting result",
     offline: "offline",
@@ -60,7 +62,9 @@ export function primaryLang(lang: PassLang): Lang {
   return lang === "en" ? "en" : "hu";
 }
 
-export type UiKey = Exclude<keyof typeof UI.hu, "more" | "moreStreams">;
+type CountKey = "more" | "moreStreams" | "moreEntries";
+
+export type UiKey = Exclude<keyof typeof UI.hu, CountKey>;
 
 /** A chrome label in one language, or "magyar · english" when the pass shows both. */
 export function ui(key: UiKey, lang: PassLang): string {
@@ -68,11 +72,7 @@ export function ui(key: UiKey, lang: PassLang): string {
   return `${UI.hu[key]} · ${UI.en[key]}`;
 }
 
-export function uiMore(
-  count: number,
-  lang: PassLang,
-  what: "more" | "moreStreams" = "more",
-): string {
+export function uiMore(count: number, lang: PassLang, what: CountKey = "more"): string {
   if (lang !== "both") return UI[lang][what](count);
   return `${UI.hu[what](count)} · ${UI.en[what](count)}`;
 }

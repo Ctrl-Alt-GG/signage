@@ -52,7 +52,7 @@
     <div class="module">
       <h2>{% translate "This is what the screens will show" %}</h2>
       {% for row in preview %}
-      <p style="padding:0 1rem">
+      <p class="signage-preview-text">
         <strong>{{ row.lang }}</strong> ({% blocktranslate with length=row.length %}{{ length }} characters{% endblocktranslate %}):
         {{ row.text }}
         {% if row.note %}<br><span class="help">{{ row.note }}</span>{% endif %}

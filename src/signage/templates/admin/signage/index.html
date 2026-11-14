@@ -1,0 +1,16 @@
+{% extends "admin/index.html" %}
+{% load i18n %}
+{% block content %}
+<div id="content-main">
+  <div class="module">
+    <table>
+      <caption>{% translate "Organizer desk" %}</caption>
+      <tr>
+        <th scope="row"><a href="{% url 'admin:signage_overview' %}">{% translate "Overview" %}</a></th>
+        <td>{% translate "The phase, every screen with a live preview, and the integrations." %}</td>
+      </tr>
+    </table>
+  </div>
+  {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+</div>
+{% endblock %}

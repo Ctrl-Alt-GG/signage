@@ -32,7 +32,15 @@ SECURE_SSL_REDIRECT = not INSECURE_LOCAL
 SECURE_REDIRECT_EXEMPT = [r"^api/v1/", r"^health/"]
 SESSION_COOKIE_SECURE = not INSECURE_LOCAL
 CSRF_COOKIE_SECURE = not INSECURE_LOCAL
-SECURE_HSTS_SECONDS = env.int("DJANGO_SECURE_HSTS_SECONDS", default=0)
+# Browsers that have seen the admin over HTTPS never ask its host name over plain HTTP
+# again, so nobody on the venue network can strip TLS from a later visit. Screens that
+# load the display over plain HTTP therefore use the IP address or another host name, one
+# that isn't below the admin's (see the README).
+SECURE_HSTS_SECONDS = env.int("DJANGO_SECURE_HSTS_SECONDS", default=31_536_000)
+SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+SECURE_HSTS_PRELOAD = True
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
+# The overview in the admin shows every screen in a frame.
 X_FRAME_OPTIONS = "SAMEORIGIN"
+SILENCED_SYSTEM_CHECKS = ["security.W019"]

@@ -63,8 +63,10 @@ export function App({ apiBase, fallbackScreen = "main" }: { apiBase: string; fal
 
   const onPassChange = useCallback((pass: Pass) => setCurrentLang(pass.lang), []);
 
-  const bundle = query.data;
   const refused = query.error instanceof ApiError ? query.error.status : null;
+  // A screen that is gone or turned off shows nothing of what it showed before.
+  const withdrawn = refused === 404 || refused === 410;
+  const bundle = withdrawn ? undefined : query.data;
   const sinceUpdate = Date.now() - query.dataUpdatedAt;
   const unavailable = query.failureCount > 0 || query.fetchStatus === "paused";
   const offline = unavailable && sinceUpdate > OFFLINE_AFTER_MS;
@@ -85,13 +87,16 @@ export function App({ apiBase, fallbackScreen = "main" }: { apiBase: string; fal
       ),
     [allPasses, liveDataExpired],
   );
-  const backgroundUrl = bundle?.stage.background_url ?? `${apiBase}display/background.svg`;
+  const backgroundUrl = query.data?.stage.background_url ?? `${apiBase}display/background.svg`;
   const nothing = bundle ? <Notice hu={UI.hu.nothing} en={UI.en.nothing} /> : null;
 
   let content;
   if (refused === 404) {
-    // The address names a screen the admin does not have, or has turned off.
+    // The address names a screen the admin does not have.
     content = <Notice hu={UI.hu.unknownScreen} en={UI.en.unknownScreen} detail={screen} />;
+  } else if (refused === 410) {
+    // The screen is turned off in the admin: the room sees the background alone.
+    content = null;
   } else if (refused === 403 && preview) {
     content = <Notice hu={UI.hu.previewNeedsLogin} en={UI.en.previewNeedsLogin} />;
   } else if (takeover) {
@@ -109,7 +114,7 @@ export function App({ apiBase, fallbackScreen = "main" }: { apiBase: string; fal
   }
 
   return (
-    <Stage backgroundUrl={backgroundUrl} stage={bundle?.stage}>
+    <Stage backgroundUrl={backgroundUrl} stage={query.data?.stage}>
       <OfflineNote visible={offline && refused === null} />
       {bundle ? (
         <TopRight

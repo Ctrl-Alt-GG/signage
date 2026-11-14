@@ -4,8 +4,8 @@ from django.conf import settings
 from django.core.cache import cache
 from django.http import FileResponse, Http404, HttpResponse
 from django.utils import timezone
-from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework.exceptions import PermissionDenied
+from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_schema
+from rest_framework.exceptions import APIException, PermissionDenied
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -18,7 +18,7 @@ from signage.api.serializers import (
     ScreenListItemSerializer,
     ScreenSerializer,
 )
-from signage.integrations.base import EXPECTED_ERRORS
+from signage.integrations.base import EXPECTED_ERRORS, refresh_lock
 from signage.integrations.streams import StreamsClient
 from signage.models import DisplaySettings, Event, Screen
 from signage.rendering.bundle import active_announcements, announcement_view, build_bundle, stamp
@@ -43,11 +43,22 @@ def _inert(response: HttpResponse) -> HttpResponse:
     return response
 
 
-def _screen_or_404(slug: str) -> Screen:
-    try:
-        return Screen.objects.get(slug=slug, enabled=True)
-    except Screen.DoesNotExist as error:
-        raise Http404("Unknown screen") from error
+class ScreenDisabled(APIException):
+    """A screen that exists and is turned off. Its display shows only the background, as
+    the room never sees an error; an unknown address still says so."""
+
+    status_code = 410
+    default_detail = "This screen is turned off."
+    default_code = "screen_disabled"
+
+
+def _enabled_screen(slug: str) -> Screen:
+    screen = Screen.objects.filter(slug=slug).first()
+    if screen is None:
+        raise Http404("Unknown screen")
+    if not screen.enabled:
+        raise ScreenDisabled
+    return screen
 
 
 def _is_staff(request) -> bool:
@@ -72,7 +83,12 @@ class BundleView(APIView):
 
     @extend_schema(
         operation_id="screen_bundle",
-        responses=BundleSerializer,
+        responses={
+            200: BundleSerializer,
+            403: OpenApiResponse(description="A preview without an admin login."),
+            404: OpenApiResponse(description="No screen has this slug."),
+            410: OpenApiResponse(description="The screen is turned off in the admin."),
+        },
         parameters=[
             OpenApiParameter("preview", str, description="Slide key to render alone (staff)."),
             OpenApiParameter("lang", str, description="hu, en or both (preview only)."),
@@ -80,7 +96,7 @@ class BundleView(APIView):
         ],
     )
     def get(self, request, slug: str):
-        screen = _screen_or_404(slug)
+        screen = _enabled_screen(slug)
         now = timezone.now()
         preview = request.GET.get("preview") or None
         phase_override = request.GET.get("phase") or None
@@ -172,13 +188,32 @@ def thumbnail(request, stream_id: str) -> HttpResponse:
     if not source:
         raise Http404("Unknown stream")
     key = f"signage:thumbnail:{client.cache_key}:{stream_id}"
-    cached = cache.get(key)
+    cached = cache.get(key) or _refresh_thumbnail(client, source, key, stream_id)
     if cached is None:
-        try:
-            cached = client.fetch_bytes(source)
-        except EXPECTED_ERRORS as error:
-            raise Http404("Thumbnail unavailable") from error
-        cache.set(key, cached, settings.SIGNAGE_THUMBNAIL_CACHE_SECONDS)
+        # The tile shows its background instead.
+        raise Http404("Thumbnail unavailable")
     response = HttpResponse(cached[0], content_type=cached[1])
     response["Cache-Control"] = f"public, max-age={settings.SIGNAGE_THUMBNAIL_CACHE_SECONDS}"
     return _inert(response)
+
+
+def _refresh_thumbnail(client: StreamsClient, source: str, key: str, stream_id: str):
+    """A new frame from Streams, asked for by one request at a time: every screen asks at
+    once when the bundle names a new version. The others, and every request while Streams
+    fails, get the previous frame."""
+    seconds = settings.SIGNAGE_THUMBNAIL_CACHE_SECONDS
+    assert client.config is not None
+    with refresh_lock(f"thumbnail-{client.config.fingerprint}-{stream_id}") as acquired:
+        if acquired and not cache.get(f"{key}:failed"):
+            # Another request may have fetched it before this one got the lock.
+            if fresh := cache.get(key):
+                return fresh
+            try:
+                fresh = client.fetch_bytes(source)
+            except EXPECTED_ERRORS:
+                cache.set(f"{key}:failed", True, seconds)
+            else:
+                cache.set(key, fresh, seconds)
+                cache.set(f"{key}:last", fresh, settings.SIGNAGE_LAST_GOOD_SECONDS)
+                return fresh
+    return cache.get(f"{key}:last")

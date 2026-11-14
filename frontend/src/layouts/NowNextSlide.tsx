@@ -1,7 +1,15 @@
 import type { Pass, ScheduleEntryView } from "../api/client";
 import { asLive, type ScheduleLive } from "../api/live";
-import { UI, joined, pick } from "../lib/i18n";
+import { UI, joined, pick, uiMore } from "../lib/i18n";
 import { Card, EmptyState, Footer, SectionLabel, Title, typeAccent } from "./common";
+
+// What fits in one column: two entries, or one and the count of the others, as on the
+// servers and streams slides.
+const MAX_ENTRIES = 2;
+
+function visible(entries: ScheduleEntryView[]): ScheduleEntryView[] {
+  return entries.length > MAX_ENTRIES ? entries.slice(0, MAX_ENTRIES - 1) : entries;
+}
 
 /** One schedule entry inside a now/next card: the game name is the headline when there is
     one, the slot title is the small line beneath; breaks and highlights without a game
@@ -55,10 +63,15 @@ export function NowNextSlide({ pass }: { pass: Pass }) {
               {entries.length === 0 ? (
                 <span className="text-[30px] text-ink-dim">-</span>
               ) : (
-                entries.slice(0, 2).map((entry) => (
+                visible(entries).map((entry) => (
                   <EntryBlock key={entry.starts_at + entry.title.hu} entry={entry} lang={pass.lang} />
                 ))
               )}
+              {entries.length > visible(entries).length ? (
+                <span className="text-[30px] font-semibold text-ink-muted">
+                  {uiMore(entries.length - visible(entries).length, pass.lang, "moreEntries")}
+                </span>
+              ) : null}
             </Card>
           ))}
         </div>

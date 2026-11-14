@@ -5,7 +5,17 @@ from django.core.cache import cache
 from django.core.files.base import ContentFile
 from django.utils import timezone
 
-from signage.models import Announcement, DisplaySettings, Event, Integration, Phase, Slide
+from signage.integrations.base import refresh_lock
+from signage.integrations.streams import StreamsClient
+from signage.models import (
+    Announcement,
+    DisplaySettings,
+    Event,
+    Integration,
+    Phase,
+    Screen,
+    Slide,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -134,6 +144,46 @@ def test_thumbnail_is_passed_on_from_streams(client, content, fixture_json):
     cache.clear()
     picture.respond(200, content=b"<html>", headers={"content-type": "text/html"})
     assert client.get(url).status_code == 404
+
+
+@respx.mock
+def test_screens_asking_for_a_new_frame_at_once_cost_one_fetch(
+    client, content, fixture_json, settings, tmp_path
+):
+    settings.SIGNAGE_LOCK_DIR = str(tmp_path / "locks")
+    row = Integration.objects.get(kind="streams")
+    row.enabled = True
+    row.base_url = "http://streams-web:8000/api/v1"
+    row.save()
+    respx.get("http://streams-web:8000/api/v1/streams/").mock(
+        return_value=httpx.Response(200, json=fixture_json("streams_list.json"))
+    )
+    picture = respx.get("http://streams-web:8000/streams/1/thumbnail/").respond(
+        200, content=b"first", headers={"content-type": "image/jpeg"}
+    )
+    stream_id = "0192f0a1-0000-7000-8000-000000000001"
+    url = f"/api/v1/display/thumbnails/{stream_id}/"
+    assert client.get(url).content == b"first"
+    key = f"signage:thumbnail:{StreamsClient().cache_key}:{stream_id}"
+
+    # The frame is due again while another request is fetching it: the previous one is sent.
+    cache.delete(key)
+    with refresh_lock(f"thumbnail-{row.fingerprint}-{stream_id}"):
+        assert client.get(url).content == b"first"
+    assert picture.call_count == 1
+
+    # Streams fails: the previous frame, and Streams is not asked again for a while.
+    picture.respond(500)
+    assert client.get(url).content == b"first"
+    assert client.get(url).content == b"first"
+    assert picture.call_count == 2
+
+
+def test_a_turned_off_screen_shows_nothing_and_an_unknown_one_says_so(client, content):
+    Screen.objects.filter(slug="main").update(enabled=False)
+    response = client.get("/api/v1/screens/main/bundle/")
+    assert response.status_code == 410
+    assert client.get("/api/v1/screens/lobby/bundle/").status_code == 404
 
 
 def test_backend_root_goes_to_the_admin(client):

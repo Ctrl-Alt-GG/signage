@@ -196,3 +196,30 @@ def test_an_unknown_placeholder_in_an_item_is_refused(content):
     slide["items"][0]["hu"] = "Csatlakozz: {wifi_name}"
     with pytest.raises(ValidationError, match="wifi_name"):
         load_slides(data)
+
+
+def test_an_event_saved_in_the_admin_survives_the_import_without_venue_and_wifi(content):
+    """An event without venue Wi-Fi is still the organizers' event, not a new one."""
+    event = Event.get_solo()
+    event.venue_name = ""
+    event.wifi_ssid = ""
+    event.wifi_security = "nopass"
+    event.organizers = ["Szervező"]
+    event.origin = Origin.ADMIN
+    event.save()
+    report = load_all(settings.SIGNAGE_CONTENT_DIR, only={"event"})
+    event.refresh_from_db()
+    assert (event.venue_name, event.wifi_ssid, event.organizers) == ("", "", ["Szervező"])
+    assert any(row.startswith("event") for row in report.skipped)
+
+    load_all(settings.SIGNAGE_CONTENT_DIR, only={"event"}, overwrite=True)
+    event.refresh_from_db()
+    assert event.venue_name == "DISTR3CT Event Cube" and event.origin == Origin.SEED
+
+
+def test_an_event_nobody_saved_in_the_admin_follows_the_yaml(db):
+    load_all(settings.SIGNAGE_CONTENT_DIR, only={"event"})
+    Event.objects.update(venue_name="From an older event.yaml")
+    report = load_all(settings.SIGNAGE_CONTENT_DIR, only={"event"})
+    assert Event.get_solo().venue_name == "DISTR3CT Event Cube"
+    assert report.updated >= 1

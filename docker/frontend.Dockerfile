@@ -40,9 +40,11 @@ FROM nginxinc/nginx-unprivileged:1.30-trixie
 
 LABEL org.opencontainers.image.description="Ctrl-Alt-GG Signage display: the React screen served by nginx."
 
-# The entrypoint renders /etc/nginx/templates into conf.d; only BACKEND_URL is substituted.
+# The entrypoint renders /etc/nginx/templates into conf.d, substituting these two only.
+# TRUSTED_PROXY is the gateway of the network compose.yaml defines.
 ENV BACKEND_URL=http://web:8000 \
-    NGINX_ENVSUBST_FILTER="^BACKEND_URL\$"
+    TRUSTED_PROXY=172.31.242.1 \
+    NGINX_ENVSUBST_FILTER="^(BACKEND_URL|TRUSTED_PROXY)\$"
 
 COPY docker/nginx/ /etc/nginx/templates/
 COPY --from=build /build/dist /usr/share/nginx/html

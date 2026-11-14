@@ -4,6 +4,7 @@ passes, plus the active announcements, the phase and the clock."""
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -121,7 +122,13 @@ def slide_content(slide: Slide, event: Event, values: Values | None = None) -> d
     return content
 
 
-def live_data(slide: Slide, event: Event, now: datetime, warnings: list[str]) -> dict | None:
+def live_data(
+    slide: Slide,
+    event: Event,
+    now: datetime,
+    warnings: list[str],
+    deadline: float | None = None,
+) -> dict | None:
     """Return the live view model for a slide, or None when the slide must be dropped."""
     if slide.source == Slide.Source.STATIC:
         return None
@@ -136,9 +143,11 @@ def live_data(slide: Slide, event: Event, now: datetime, warnings: list[str]) ->
     if not client.enabled:
         warnings.append(f"{slide.key}: disabled, the {client.kind} integration is not configured")
         return None
-    result = client.fetch()
+    result = client.fetch(deadline)
     if result.data is None:
-        return {"empty": True, "stale": True, "error": result.error}
+        # Why is for the admin overview: the bundle is public, and the error names the
+        # upstream's internal address.
+        return {"empty": True, "stale": True}
     data = dict(result.data)
     # Stale when our transport cache is stale or when the upstream reports its own source
     # as stale (Streams does), so neither case shows as fresh.
@@ -199,7 +208,9 @@ def announcement_view(announcement: Announcement) -> dict[str, Any]:
     }
 
 
-def screen_announcements(screen: Screen, now: datetime) -> list[dict[str, Any]]:
+def screen_announcements(
+    screen: Screen, now: datetime, deadline: float | None = None
+) -> list[dict[str, Any]]:
     """What a screen announces: the announcements for every screen and those for this one,
     then the one mirrored from Projectile."""
     views = []
@@ -207,16 +218,16 @@ def screen_announcements(screen: Screen, now: datetime) -> list[dict[str, Any]]:
         screens = announcement.screens.all()
         if not screens or any(candidate.pk == screen.pk for candidate in screens):
             views.append(announcement_view(announcement))
-    if mirrored := _mirrored_announcement():
+    if mirrored := _mirrored_announcement(deadline):
         views.append(mirrored)
     return views
 
 
-def _mirrored_announcement() -> dict | None:
+def _mirrored_announcement(deadline: float | None = None) -> dict | None:
     config = Integration.objects.filter(kind=Integration.Kind.PROJECTILE).first()
     if not config or not config.mirror_announcement or not config.is_configured:
         return None
-    result = ProjectileClient(config).fetch()
+    result = ProjectileClient(config).fetch(deadline)
     text = (result.data or {}).get("announcement") or ""
     if not text:
         return None
@@ -293,6 +304,7 @@ def build_bundle(
 ) -> dict[str, Any]:
     event = Event.get_solo()
     warnings: list[str] = []
+    deadline = time.monotonic() + settings.SIGNAGE_BUNDLE_UPSTREAM_SECONDS
     phase = resolve_phase(event, now)
     if phase_override:
         phase = Phase.objects.filter(key=phase_override).first() or phase
@@ -305,7 +317,7 @@ def build_bundle(
     values = placeholder_values(event)
     passes: list[dict] = []
     for slide in slides:
-        live = live_data(slide, event, now, warnings)
+        live = live_data(slide, event, now, warnings, deadline)
         if slide.is_live and live is None and not preview_slide:
             continue
         try:
@@ -320,7 +332,7 @@ def build_bundle(
         )
         passes.extend(slide_passes)
 
-    announcements = [] if preview_slide else screen_announcements(screen, now)
+    announcements = [] if preview_slide else screen_announcements(screen, now, deadline)
 
     display = DisplaySettings.get_solo()
     return {

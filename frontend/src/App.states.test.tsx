@@ -67,6 +67,37 @@ describe("App", () => {
     expect(fetchMock).toHaveBeenCalledOnce();
   });
 
+  it("shows only the background for a screen that is turned off", async () => {
+    vi.useFakeTimers();
+    const fetchMock = serve({ status: 410, body: { detail: "This screen is turned off." } });
+    renderApp();
+    await wait(100);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId("empty")).not.toBeInTheDocument();
+    const stage = document.querySelector<HTMLElement>("[data-stage]");
+    expect(stage?.style.backgroundImage).toContain("/api/v1/display/background.svg");
+  });
+
+  it("clears the slides and announcements of a screen once it is turned off", async () => {
+    vi.useFakeTimers();
+    serve(
+      ok(makeBundle({ announcements: [makeAnnouncement()] })),
+      { status: 410, body: { detail: "This screen is turned off." } },
+    );
+    renderApp();
+    await wait(100);
+    expect(screen.getByRole("heading", { name: "Cím welcome" })).toBeInTheDocument();
+    expect(screen.getByText("Pizza 19:00-kor")).toBeInTheDocument();
+
+    await wait(20_000);
+    expect(screen.queryByRole("heading", { name: "Cím welcome" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Pizza 19:00-kor")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("empty")).not.toBeInTheDocument();
+    // The artwork the screen was showing stays.
+    const stage = document.querySelector<HTMLElement>("[data-stage]");
+    expect(stage?.style.backgroundImage).toContain("background.svg?v=bundled");
+  });
+
   it("tells an organizer to sign in for a preview", async () => {
     serve({ status: 403, body: { detail: "Sign in to the admin to preview a slide." } });
     renderApp("/display/main/?preview=food&lang=hu");

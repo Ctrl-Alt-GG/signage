@@ -159,9 +159,9 @@ def _prune(model, report: Report, label: str, keys: set[str], *, prune: bool) ->
 @transaction.atomic
 def load_event(data: dict, *, overwrite: bool = False, prune: bool = False) -> Report:
     report = Report()
+    is_new = not Event.objects.exists()
     event = Event.get_solo()
-    is_new = event.venue_name == "" and not event.wifi_ssid
-    if is_new or overwrite:
+    if event.origin != Origin.ADMIN or overwrite:
         ev, venue, wifi = data["event"], data["venue"], data["wifi"]
         event.name = ev["name"]
         event.tagline = ev.get("tagline", "")
@@ -183,6 +183,7 @@ def load_event(data: dict, *, overwrite: bool = False, prune: bool = False) -> R
         event.links = dict(data.get("links", {}))
         event.email = data.get("links", {}).get("email", "")
         event.organizers = list(data.get("organizers", []))
+        event.origin = Origin.SEED
         event.full_clean()
         event.save()
         report.created += int(is_new)

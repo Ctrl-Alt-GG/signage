@@ -122,6 +122,13 @@ class BracketClient(IntegrationClient[dict[str, Any]]):
         try:
             details = self.get_json(f"{prefix}/details")["data"]
         except httpx.HTTPStatusError as error:
+            # Bracket refuses a tournament that doesn't exist, and one whose Details page is
+            # off, as it would refuse a login.
+            if error.response.status_code in (httpx.codes.UNAUTHORIZED, httpx.codes.FORBIDDEN):
+                raise ValueError(
+                    f"Tournament {self.config.tournament_id} is not public in Bracket or does "
+                    "not exist: check the id and turn on its Details page."
+                ) from error
             if error.response.status_code != httpx.codes.NOT_FOUND:
                 raise
         else:

@@ -12,7 +12,7 @@ import yaml
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
-from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.admin.views.main import ChangeList
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import DatabaseError
 from django.db.models import F
@@ -65,9 +65,14 @@ CLIENTS = {
 # shows one language after the other, in smaller type.
 BAR_COMFORTABLE_LENGTH = 110
 
-admin.site.site_header = "Ctrl-Alt-GG Signage"
-admin.site.site_title = "Signage admin"
-admin.site.index_title = _("Signage administration")
+# About how much of a slide's body the display shows before it cuts off the rest: three
+# lines at the body's type size, in the width each layout gives it (frontend/src/layouts),
+# at an average glyph width of 0.55 em. The other layouts show no body.
+BODY_COMFORTABLE_LENGTH = {
+    Slide.Layout.HERO: 170,
+    Slide.Layout.COUNTDOWN: 190,
+    Slide.Layout.CREDENTIALS: 180,
+}
 
 
 class YamlImportForm(forms.Form):
@@ -239,7 +244,10 @@ class EventAdmin(YamlImportMixin, SingletonModelAdmin):
     change_list_template = None
     change_form_template = "admin/signage/event_change_form.html"
     fieldsets = (
-        (_("Event"), {"fields": ("name", "tagline", "starts_at", "ends_at", "timezone")}),
+        (
+            _("Event"),
+            {"fields": ("name", "tagline", "starts_at", "ends_at", "timezone", "origin")},
+        ),
         (
             _("Phase"),
             {
@@ -276,7 +284,12 @@ class EventAdmin(YamlImportMixin, SingletonModelAdmin):
         ),
         (_("Contact and links"), {"fields": ("email", "organizers", "links")}),
     )
-    readonly_fields = ("resolved_phase",)
+    readonly_fields = ("resolved_phase", "origin")
+
+    def save_model(self, request, obj, form, change):
+        # The import that runs on every start leaves an event saved here alone.
+        obj.origin = Origin.ADMIN
+        super().save_model(request, obj, form, change)
 
     @admin.display(description=_("Phase in force now"))
     def resolved_phase(self, obj):
@@ -344,10 +357,7 @@ class DisplaySettingsAdmin(SingletonModelAdmin):
     @admin.display(description=_("Preview"))
     def background_preview(self, obj):
         url = reverse("signage-api:background") + f"?v={obj.background_version}"
-        return format_html(
-            '<img src="{}" alt="" style="max-width:480px;border:1px solid #444;border-radius:8px">',
-            url,
-        )
+        return format_html('<img src="{}" alt="" class="signage-preview">', url)
 
 
 @admin.register(Phase)
@@ -371,13 +381,28 @@ class GameAdmin(AdminOwnedMixin, YamlImportMixin, admin.ModelAdmin):
 
     @admin.display(description=_("Colour"))
     def swatch(self, obj):
-        style = "display:inline-block;padding:2px 10px;border-radius:999px;background:{};color:{}"
+        # The colours go in SVG attributes: the admin's CSP refuses style attributes, and
+        # every game has its own.
+        width = 24 + 8 * len(obj.short)
         return format_html(
-            '<span style="' + style + '">{}</span>',
+            '<svg class="signage-swatch" width="{}" height="22" role="img" aria-label="{}">'
+            '<rect width="100%" height="100%" rx="11" fill="{}"/>'
+            '<text x="50%" y="15" text-anchor="middle" fill="{}">{}</text></svg>',
+            width,
+            obj.short,
             obj.color_bg,
             obj.color_text,
             obj.short,
         )
+
+
+class ScheduleEntryChangeList(ChangeList):
+    def get_results(self, request):
+        super().get_results(request)
+        # Every row's time is on the event's days: the event is read once per page.
+        event = Event.get_solo()
+        for entry in self.result_list:
+            entry.local_start_at = entry.starts_at(event)
 
 
 @admin.register(ScheduleEntry)
@@ -414,9 +439,12 @@ class ScheduleEntryAdmin(AdminOwnedMixin, YamlImportMixin, admin.ModelAdmin):
         minutes = F("day_offset") * 1440 + ExtractHour("time") * 60 + ExtractMinute("time")
         return super().get_queryset(request).annotate(happens_at=minutes)
 
+    def get_changelist(self, request, **kwargs):
+        return ScheduleEntryChangeList
+
     @admin.display(description=_("Starts"), ordering="happens_at")
     def local_start(self, obj):
-        return date_format(obj.starts_at(Event.get_solo()), "D H:i")
+        return date_format(obj.local_start_at, "D H:i")
 
 
 class SlideItemFormSet(BaseInlineFormSet):
@@ -453,6 +481,15 @@ class ScreenSlideInline(admin.TabularInline):
     extra = 0
     autocomplete_fields = ("slide",)
     ordering = ("order",)
+
+
+class SlideChangeList(ChangeList):
+    def get_results(self, request):
+        super().get_results(request)
+        # The previews open on the default screen, read once per page.
+        url = display_url(DisplaySettings.get_solo().default_screen_slug)
+        for slide in self.result_list:
+            slide.preview_url = url
 
 
 @admin.register(Slide)
@@ -539,18 +576,32 @@ class SlideAdmin(AdminOwnedMixin, YamlImportMixin, admin.ModelAdmin):
     def phase_list(self, obj):
         return "all" if obj.all_phases else ", ".join(p.key for p in obj.phases.all())
 
+    def get_changelist(self, request, **kwargs):
+        return SlideChangeList
+
     @admin.display(description=_("Preview"))
     def preview_links(self, obj):
-        screen = DisplaySettings.get_solo().default_screen_slug
-        base = display_url(screen)
         return format_html(
             '<a href="{}?preview={}&lang=hu" target="_blank">HU</a> | '
             '<a href="{}?preview={}&lang=en" target="_blank">EN</a>',
-            base,
+            obj.preview_url,
             obj.key,
-            base,
+            obj.preview_url,
             obj.key,
         )
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        limit = BODY_COMFORTABLE_LENGTH.get(obj.layout)
+        for lang in LANGS:
+            body = getattr(obj, f"body_{lang}")
+            if limit and len(body) > limit:
+                message = _(
+                    "%(lang)s: the body has %(length)d characters. The %(layout)s layout shows "
+                    "about %(limit)d, three lines, and cuts off the rest."
+                )
+                values = {"lang": lang.upper(), "length": len(body), "layout": obj.layout}
+                messages.warning(request, message % {**values, "limit": limit})
 
     # Both are an organizer's decision about the slide, like ticking the box in the list,
     # so the slide becomes theirs and a later import does not turn it back.
@@ -869,7 +920,8 @@ class IntegrationAdmin(admin.ModelAdmin):
     )
 
     def get_fieldsets(self, request, obj=None):
-        if self.has_change_permission(request, obj):
+        # Whoever adds a row types its secrets, as does whoever may change it.
+        if obj is None or self.has_change_permission(request, obj):
             return self.fieldsets
         # Someone who may only look sees every field as text. Not the secrets: for those
         # they see whether one is set.
@@ -898,7 +950,10 @@ class IntegrationAdmin(admin.ModelAdmin):
         return _("set") if obj.token else _("not set")
 
     def has_add_permission(self, request):
-        return Integration.objects.count() < len(Integration.Kind)
+        # One row per kind. A missing one may be added again by whoever may add rows.
+        return super().has_add_permission(request) and (
+            Integration.objects.count() < len(Integration.Kind)
+        )
 
     def has_delete_permission(self, request, obj=None):
         return False
@@ -917,7 +972,6 @@ class IntegrationAdmin(admin.ModelAdmin):
         )
 
 
-@staff_member_required
 def overview(request):
     """One page for the organizer desk: phase, screens with previews, integrations, warnings."""
     event = Event.get_solo()
@@ -945,13 +999,3 @@ def overview(request):
         "integrations": integrations,
     }
     return render(request, "admin/signage/overview.html", context)
-
-
-_original_get_urls = admin.site.get_urls
-
-
-def _get_urls():
-    return [path("signage/overview/", overview, name="signage_overview"), *_original_get_urls()]
-
-
-admin.site.get_urls = _get_urls

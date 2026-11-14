@@ -1,8 +1,10 @@
 """Settings shared by every environment. Values come from the environment or `.env`."""
 
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import environ
+from django.utils.csp import CSP
 
 BASE_DIR = Path(__file__).resolve().parents[3]
 
@@ -17,7 +19,8 @@ CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 PUBLIC_BASE_URL = env("PUBLIC_BASE_URL", default="http://localhost:8000")
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
+    # Django's admin, on the site in signage/sites.py.
+    "signage.apps.SignageAdminConfig",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -39,6 +42,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django.middleware.csp.ContentSecurityPolicyMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -98,6 +102,26 @@ MEDIA_ROOT = Path(env("MEDIA_ROOT", default=str(BASE_DIR / "data" / "media")))
 # Empty means the same origin as the admin (the nginx frontend proxies /admin/).
 DISPLAY_BASE_URL = env("DISPLAY_BASE_URL", default="").rstrip("/")
 
+
+def _origin(url: str) -> list[str]:
+    parts = urlsplit(url)
+    return [f"{parts.scheme}://{parts.netloc}"] if parts.scheme and parts.netloc else []
+
+
+# The policy of the admin and the API: nothing from elsewhere, no inline script or style.
+# The overview frames the display. The display itself has its own policy, set by nginx in
+# docker/nginx/default.conf.template. Responses that set their own, such as the sandboxed
+# background and thumbnails, keep it.
+SECURE_CSP = {
+    "default-src": [CSP.SELF],
+    "base-uri": [CSP.SELF],
+    "form-action": [CSP.SELF],
+    "frame-ancestors": [CSP.SELF],
+    "frame-src": [CSP.SELF, *_origin(DISPLAY_BASE_URL)],
+    "img-src": [CSP.SELF, "data:"],
+    "object-src": [CSP.NONE],
+}
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework.authentication.SessionAuthentication"],
     "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
@@ -126,6 +150,10 @@ SIGNAGE_THUMBNAIL_CACHE_SECONDS = env.int("SIGNAGE_THUMBNAIL_CACHE_SECONDS", def
 # Every screen polls its bundle. Building it once a second at most keeps a room full of
 # screens, or someone hammering the anonymous API, from costing more than one build.
 SIGNAGE_BUNDLE_CACHE_SECONDS = env.float("SIGNAGE_BUNDLE_CACHE_SECONDS", default=1.0)
+# How long one bundle may spend asking upstream systems before the rest get their last good
+# answer. With the longest a single system may take (models.MAX_UPSTREAM_SECONDS) it stays
+# within gunicorn's timeout, so a screen gets an answer instead of an error.
+SIGNAGE_BUNDLE_UPSTREAM_SECONDS = env.float("SIGNAGE_BUNDLE_UPSTREAM_SECONDS", default=15.0)
 # The largest YAML file the admin import reads.
 SIGNAGE_IMPORT_MAX_BYTES = env.int("SIGNAGE_IMPORT_MAX_BYTES", default=1_000_000)
 

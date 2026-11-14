@@ -11,6 +11,7 @@ from __future__ import annotations
 import fcntl
 import logging
 import ssl
+import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -43,10 +44,25 @@ class Result[T]:
         return self.data is not None
 
 
-def describe(error: BaseException) -> str:
+def describe(error: BaseException, base_url: str = "") -> str:
     """One line that tells an HTTP 403 from a timeout from a missing key."""
+    if isinstance(error, httpx.HTTPStatusError) and error.response.is_redirect:
+        return _redirect_hint(error, base_url)
     text = str(error).strip()
     return f"{type(error).__name__}: {text}" if text else type(error).__name__
+
+
+def _redirect_hint(error: httpx.HTTPStatusError, base_url: str) -> str:
+    """What to configure instead of an address that redirects, as the client doesn't follow
+    redirects. The usual one keeps the path and changes the scheme or the host, as from
+    plain HTTP to HTTPS; then the API root on the new address is named."""
+    requested = error.request.url
+    target = requested.join(error.response.headers.get("location", ""))
+    endpoint = requested.path.removeprefix(httpx.URL(base_url).path.rstrip("/"))
+    if base_url and endpoint and target.path.endswith(endpoint):
+        root = target.copy_with(path=target.path.removesuffix(endpoint), query=None)
+        return f"The server redirects to {target}: set the API root to {root}."
+    return f"The server redirects to {target}, and redirects aren't followed: check the API root."
 
 
 @contextmanager
@@ -84,7 +100,10 @@ class IntegrationClient[T]:
         fingerprint = self.config.fingerprint if self.config else "none"
         return f"signage:integration:{self.kind}:{fingerprint}"
 
-    def fetch(self) -> Result[T]:
+    def fetch(self, deadline: float | None = None) -> Result[T]:
+        """The cached answer, or a fresh one. Past `deadline`, a `time.monotonic()` value, the
+        upstream isn't asked: the last good answer stands in, so that one request never
+        waits for every slow system in turn."""
         if not self.enabled:
             return Result(None, False, None, "disabled")
         cached = cache.get(self.cache_key)
@@ -96,6 +115,8 @@ class IntegrationClient[T]:
             return self._last_good(failure)
 
         assert self.config is not None
+        if deadline is not None and time.monotonic() >= deadline:
+            return self._last_good("not asked: the bundle had no time left for it")
         seconds = self.config.cache_seconds
         with refresh_lock(f"{self.kind}-{self.config.fingerprint}") as acquired:
             if not acquired:
@@ -116,8 +137,9 @@ class IntegrationClient[T]:
                 cache.set(f"{self.cache_key}:last", payload, settings.SIGNAGE_LAST_GOOD_SECONDS)
                 return Result(data, False, fetched_at)
             except EXPECTED_ERRORS as error:
-                log.warning("%s upstream failed: %s", self.kind, describe(error))
-                return self._failed(describe(error), seconds)
+                problem = describe(error, self.config.base_url)
+                log.warning("%s upstream failed: %s", self.kind, problem)
+                return self._failed(problem, seconds)
             except Exception as error:
                 log.exception("%s upstream answer could not be read", self.kind)
                 return self._failed(describe(error), seconds)

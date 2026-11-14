@@ -1,6 +1,7 @@
 """Checks a contributor would otherwise run by hand, kept in the test suite so CI needs
 a single command: Django system checks, migrations, content lint and the API schema."""
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -37,3 +38,25 @@ def test_content_lints():
 
 def test_openapi_schema_is_valid(tmp_path):
     call_command("spectacular", "--file", str(tmp_path / "openapi.yaml"), "--validate")
+
+
+def test_production_settings_pass_the_deploy_checks():
+    # The production settings as .env.example configures them, with placeholders for the
+    # secrets. Variables set here win over a local .env.
+    environment = {
+        **os.environ,
+        "DJANGO_SETTINGS_MODULE": "config.settings.production",
+        "DJANGO_SECRET_KEY": "test-only-hGq7vX2mKp9sWd4zRt6yBn8cLf3jUa5eQo1iMw0xVk",
+        "DJANGO_ALLOWED_HOSTS": "signage.example.com,127.0.0.1",
+        "DJANGO_SECURE_HSTS_SECONDS": "31536000",
+        "DJANGO_INSECURE_LOCAL": "false",
+        "DATABASE_URL": "sqlite://:memory:",
+    }
+    result = subprocess.run(
+        [sys.executable, str(ROOT / "manage.py"), "check", "--deploy", "--fail-level", "WARNING"],
+        capture_output=True,
+        text=True,
+        env=environment,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr or result.stdout

@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
-from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerSplitView
 from health_check.views import HealthCheckView
 from rest_framework.permissions import IsAdminUser
 
@@ -15,7 +15,8 @@ urlpatterns = [
     ),
     path(
         "api/docs/",
-        SpectacularSwaggerView.as_view(url_name="schema", permission_classes=(IsAdminUser,)),
+        # The split view serves its start-up script as a file, which the CSP allows.
+        SpectacularSwaggerSplitView.as_view(url_name="schema", permission_classes=(IsAdminUser,)),
         name="api-docs",
     ),
     path(

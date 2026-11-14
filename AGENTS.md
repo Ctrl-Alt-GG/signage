@@ -63,10 +63,10 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
 - Organizers manage everything in the Django admin. Slides, schedule,
   games and event facts load from `content/*.yaml` (`loadcontent` or the
   admin import). Rows are matched by a stable key (slide id, schedule
-  `key`, game slug, phase key, template key); a row saved in the admin
-  carries `origin=admin` and later imports skip it unless overwrite is
-  requested, so a redeploy never undoes an organizer's edit. The
-  background SVG is exchangeable in the admin.
+  `key`, game slug, phase key, template key); a row saved in the admin,
+  the event included, carries `origin=admin` and later imports skip it
+  unless overwrite is requested, so a redeploy never undoes an organizer's
+  edit. The background SVG is exchangeable in the admin.
 - Files: nginx serves Django's static files, collected while building the
   frontend image. Uploaded backgrounds live on the backend's persistent
   `media` volume and are served only through the sandboxed background API.
@@ -74,7 +74,12 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   application only needs a few local files. The backend never serves static
   files in production. Back up the media volume with the database.
 - Access rights are fixed: the API is read-only and anonymous, the admin
-  is staff-only.
+  is staff-only. Upstream errors name internal addresses, so they appear in
+  the admin overview and never in the API.
+- The admin runs on `signage.sites.SignageAdminSite`; its own pages, such
+  as the overview, are URLs of that site. Django's CSP middleware serves
+  the admin and the API without inline script or style: admin styles go in
+  `src/signage/static/signage/admin.css`.
 - Generated files are git-ignored and never committed:
   `frontend/openapi.yaml`, `frontend/src/api/schema.d.ts`,
   `frontend/dist/`, `*.tsbuildinfo`, `docs/`, `screenshots/`, `data/`.
@@ -88,7 +93,10 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   at 0.72em; one-line labels join the two with a middle dot. Hungarian is
   required, English falls back to Hungarian.
 - Live slides fall back to last-good data, then to their `empty` text.
-  The room never sees an error.
+  The room never sees an error: a screen turned off in the admin answers
+  410 and shows only the background. An unknown screen says so.
+- A now/next column shows two entries, or one and the count of the
+  others.
 - The Wi-Fi layout reads exact structured credentials, preserving spaces.
   Quotation marks show where each value begins and ends and are not part
   of the credential. Open networks show no password.
@@ -139,6 +147,23 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
 - Comments state what the code cannot. No narration of the next line.
 - Commit messages: imperative subject under 72 characters, a body that
   says why. No model names or tool advertisements in commits.
+
+### Content quality
+
+Write for each artifact's audience. Product text helps people use the
+application; comments explain non-obvious behaviour; tests describe behaviour;
+change descriptions explain the change and relevant validation.
+
+Include only information needed for the artifact's purpose. Keep commissioning
+conversations, incidental personal context, and task-execution narration out of
+delivered content, including metadata. State durable requirements directly and
+explain relevant product or technical rationale. Preserve useful technical
+provenance and required attribution. Instructional and example material belongs
+only where the artifact's purpose requires it.
+
+Before handing off, review all changed content in context, including new files
+and less visible text. Each statement should be useful to its reader without
+access to the development conversation.
 
 Sweep before committing:
 

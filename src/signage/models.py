@@ -164,6 +164,9 @@ class Event(SingletonModel, Bilingual):
     current_phase = models.ForeignKey(
         Phase, null=True, blank=True, on_delete=models.SET_NULL, related_name="+"
     )
+    # As for the seeded rows: once the event is saved in the admin, the import that runs on
+    # every start leaves it alone unless overwrite is requested.
+    origin = models.CharField(max_length=5, choices=Origin, default=Origin.SEED)
 
     class Meta:
         verbose_name = _("Event")
@@ -585,11 +588,22 @@ class Announcement(TimeStamped, Bilingual):
     def __str__(self) -> str:
         return self.text_hu[:60]
 
+    def clean(self) -> None:
+        super().clean()
+        # It would be saved as enabled and never show.
+        if self.ends_at is not None and self.ends_at <= self.starts_at:
+            raise ValidationError({"ends_at": _("The announcement must end after it starts.")})
+
     def is_active(self, now: datetime | None = None) -> bool:
         now = now or timezone.now()
         if not self.enabled or self.starts_at > now:
             return False
         return self.ends_at is None or self.ends_at > now
+
+
+# What one upstream may take, connecting and reading together. One bundle can ask three
+# systems in turn, within the time gunicorn gives a request (src/config/gunicorn.py).
+MAX_UPSTREAM_SECONDS = 10
 
 
 def validate_upstream_url(value: str) -> None:
@@ -626,11 +640,20 @@ class Integration(TimeStamped):
         blank=True,
         validators=[validate_upstream_url],
         help_text=_(
-            "API root without a trailing slash, for example https://servers.ctrl-alt-gg.hu/api. "
-            "An address inside the venue network works too, such as http://streams-web:8000/api/v1."
+            "API root without a trailing slash: the system's public HTTPS address, for example "
+            "https://streams.ctrl-alt-gg.hu/api/v1. An address inside the Docker network only "
+            "works once the other system serves it there (see the README)."
         ),
     )
-    auth_type = models.CharField(max_length=6, choices=Auth, default=Auth.NONE)
+    auth_type = models.CharField(
+        max_length=6,
+        choices=Auth,
+        default=Auth.NONE,
+        help_text=_(
+            "Bracket needs none: a tournament with its Details page on is public. A Bracket "
+            "login token expires, after 12 hours by default."
+        ),
+    )
     username = models.CharField(max_length=120, blank=True)
     password = models.CharField(max_length=240, blank=True)
     token = models.CharField(max_length=500, blank=True)
@@ -641,10 +664,10 @@ class Integration(TimeStamped):
     )
     # Every screen waits for these when an upstream is slow, so they stay short.
     connect_timeout = models.FloatField(
-        default=2.0, validators=[MinValueValidator(0.1), MaxValueValidator(30)]
+        default=2.0, validators=[MinValueValidator(0.1), MaxValueValidator(MAX_UPSTREAM_SECONDS)]
     )
     read_timeout = models.FloatField(
-        default=4.0, validators=[MinValueValidator(0.1), MaxValueValidator(30)]
+        default=4.0, validators=[MinValueValidator(0.1), MaxValueValidator(MAX_UPSTREAM_SECONDS)]
     )
     cache_seconds = models.PositiveSmallIntegerField(
         default=15, validators=[MinValueValidator(1), MaxValueValidator(600)]
@@ -685,6 +708,16 @@ class Integration(TimeStamped):
         if self.kind == self.Kind.BRACKET and self.enabled and self.tournament_id is None:
             raise ValidationError(
                 {"tournament_id": _("Choose the tournament the screens should show.")}
+            )
+        if (self.connect_timeout or 0) + (self.read_timeout or 0) > MAX_UPSTREAM_SECONDS:
+            raise ValidationError(
+                {
+                    "read_timeout": _(
+                        "Connecting and reading may take %(max)d seconds together at most: "
+                        "screens wait for a slow system, and one bundle asks up to three."
+                    )
+                    % {"max": MAX_UPSTREAM_SECONDS}
+                }
             )
 
     @property

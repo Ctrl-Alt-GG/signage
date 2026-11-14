@@ -11,7 +11,7 @@
   {% if phases %}
   <fieldset class="module aligned">
     <h2>{% translate "Set the phase now" %}</h2>
-    <div class="form-row" style="display:flex;gap:.5rem;flex-wrap:wrap">
+    <div class="form-row signage-phase-buttons">
       {% comment %}The buttons sit inside the admin's own form, so they redirect its
       submission to the phase view instead of nesting a second form.{% endcomment %}
       {% for phase in phases %}

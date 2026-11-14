@@ -1,3 +1,4 @@
+import time
 from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
@@ -5,6 +6,7 @@ import httpx
 import pytest
 import respx
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 
 from signage.integrations.base import refresh_lock
 from signage.integrations.bracket import BracketClient, match_status, parse_tournament
@@ -345,6 +347,59 @@ def test_credentials_do_not_follow_a_redirect(content):
     assert result.data is None and elsewhere.call_count == 0
 
 
+@respx.mock
+def test_a_tournament_bracket_refuses_is_named_with_what_to_do(content):
+    """Bracket answers a missing or private tournament as it would a bad login."""
+    row = _configure("bracket", BRACKET, tournament_id=7)
+    respx.get(f"{BRACKET}/tournaments/7/details").mock(
+        return_value=httpx.Response(401, json={"detail": "Could not validate credentials"})
+    )
+    result = BracketClient(row).fetch()
+    assert result.data is None
+    assert result.error == (
+        "ValueError: Tournament 7 is not public in Bracket or does not exist: check the id and "
+        "turn on its Details page."
+    )
+
+
+@respx.mock
+def test_a_redirect_names_the_api_root_to_configure(content):
+    row = _configure("streams", "http://streams.example/api/v1")
+    respx.get("http://streams.example/api/v1/streams/").mock(
+        return_value=httpx.Response(
+            301, headers={"Location": "https://streams.example/api/v1/streams/"}
+        )
+    )
+    assert StreamsClient(row).fetch().error == (
+        "The server redirects to https://streams.example/api/v1/streams/: set the API root to "
+        "https://streams.example/api/v1."
+    )
+
+
+@respx.mock
+def test_a_bundle_without_time_left_asks_no_upstream(content, fixture_json):
+    row = _configure("streams", "https://streams.example/api/v1")
+    route = respx.get("https://streams.example/api/v1/streams/").mock(
+        return_value=httpx.Response(200, json=fixture_json("streams_list.json"))
+    )
+    client = StreamsClient(row)
+    late = client.fetch(deadline=time.monotonic() - 1)
+    assert late.data is None and late.stale and route.call_count == 0
+    assert client.fetch(deadline=time.monotonic() + 5).ok and route.call_count == 1
+    # The last good answer stands in once the time is spent.
+    cache.delete(client.cache_key)
+    assert client.fetch(deadline=time.monotonic() - 1).data == client.fetch().data
+
+
+def test_connecting_and_reading_together_stay_within_the_limit(db):
+    row = Integration.objects.get(kind="streams")
+    row.connect_timeout, row.read_timeout = 4, 7
+    with pytest.raises(ValidationError, match="10 seconds together"):
+        row.full_clean()
+    row.connect_timeout, row.read_timeout = 3, 7
+    row.full_clean()
+
+
 def test_disabled_integration_is_skipped(content):
     result = BracketClient(Integration.objects.get(kind="bracket")).fetch()
     assert result.data is None and result.error == "disabled"
@@ -385,6 +440,22 @@ def test_thumbnail_redirects_stay_with_streams(content):
 
     assert client.fetch_bytes("/streams/1/thumbnail/") == (b"img", "image/jpeg")
     assert on_streams.call_count == 1 and elsewhere.call_count == 0
+
+
+@respx.mock
+def test_the_artwork_streams_redirects_to_by_path_is_passed_on(content):
+    """Streams sends a stream without a captured frame to its artwork, by path."""
+    client = StreamsClient(_configure("streams", "https://streams.example/api/v1", **BASIC))
+    respx.get("https://streams.example/streams/1/thumbnail/").mock(
+        return_value=httpx.Response(
+            302, headers={"Location": "/static/catalog/thumbnails/fallback.webp"}
+        )
+    )
+    respx.get("https://streams.example/static/catalog/thumbnails/fallback.webp").respond(
+        200, content=b"art", headers={"content-type": "image/webp"}
+    )
+    thumbnail = "https://streams.example/streams/1/thumbnail/"
+    assert client.fetch_bytes(thumbnail) == (b"art", "image/webp")
 
 
 @respx.mock

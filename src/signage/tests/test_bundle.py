@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 
 import httpx
@@ -291,3 +292,19 @@ def test_integration_rows_exist_after_migration():
         "streams",
     }
     assert timezone.now() is not None
+
+
+@respx.mock
+def test_the_public_bundle_does_not_name_a_failing_upstream(event, screen, at):
+    """The error names the upstream's internal address. The admin overview shows it."""
+    row = Integration.objects.get(kind="streams")
+    row.enabled = True
+    row.base_url = "http://streams-internal:8000/api/v1"
+    row.save()
+    respx.get("http://streams-internal:8000/api/v1/streams/").mock(
+        return_value=httpx.Response(401, json={"detail": "nope"})
+    )
+    bundle = build_bundle(screen, at(1), preview_slide="streams_live")
+    lives = [pass_["live"] for pass_ in bundle["passes"]]
+    assert lives and all(live == {"empty": True, "stale": True} for live in lives)
+    assert "streams-internal" not in json.dumps(bundle, default=str)

@@ -1,9 +1,12 @@
 import re
+from collections import Counter
 from datetime import timedelta
 
 import pytest
+from django.contrib import admin
 from django.contrib.auth.models import Permission, User
 from django.core.cache import cache
+from django.urls import reverse
 from django.utils import timezone
 
 from signage.models import (
@@ -12,6 +15,7 @@ from signage.models import (
     DisplaySettings,
     Event,
     Integration,
+    Origin,
     Slide,
 )
 
@@ -344,3 +348,118 @@ def test_schedule_list_sorts_by_when_things_happen(admin_client, content):
     moments = [(row.day_offset, row.time) for row in rows]
     assert moments == sorted(moments)
     assert rows[-1].day_offset == 1
+
+
+# ---------------------------------------------------------------- findings of the review
+
+
+def test_saving_the_event_in_the_admin_makes_it_the_organizers(rf, admin_user, content):
+    event = Event.get_solo()
+    event.origin = Origin.SEED
+    event.save()
+    request = rf.post("/admin/signage/event/")
+    request.user = admin_user
+    admin.site.get_model_admin(Event).save_model(request, event, form=None, change=True)
+    assert Event.get_solo().origin == Origin.ADMIN
+
+
+def test_setting_the_phase_leaves_the_event_to_the_import(admin_client, content):
+    """The phase is not in event.yaml, so switching it does not stop the file's updates."""
+    Event.objects.update(origin=Origin.SEED)
+    response = admin_client.post(reverse("admin:signage_event_set_phase", args=["late"]))
+    assert response.status_code == 302
+    event = Event.get_solo()
+    assert event.current_phase.key == "late" and event.origin == Origin.SEED
+
+
+def test_a_missing_integration_is_added_only_by_those_who_may_add_one(client, db):
+    Integration.objects.filter(kind="streams").delete()
+    user = User.objects.create_user("staff", password="x", is_staff=True)
+    user.user_permissions.add(Permission.objects.get(codename="view_integration"))
+    client.force_login(user)
+    assert client.get("/admin/signage/integration/add/").status_code == 403
+    user.user_permissions.add(Permission.objects.get(codename="add_integration"))
+    assert client.get("/admin/signage/integration/add/").status_code == 200
+
+
+def test_an_announcement_that_ends_before_it_starts_is_refused(admin_client, content):
+    response = admin_client.post(
+        "/admin/signage/announcement/add/",
+        {
+            "text_hu": "Vacsora",
+            "text_en": "Dinner",
+            "level": "info",
+            "enabled": "on",
+            "starts_at_0": "2026-10-03",
+            "starts_at_1": "18:00:00",
+            "ends_at_0": "2026-10-03",
+            "ends_at_1": "17:00:00",
+        },
+    )
+    assert response.status_code == 200
+    assert "must end after it starts" in response.content.decode()
+    assert not Announcement.objects.exists()
+
+
+def test_a_body_the_layout_would_cut_off_gets_a_warning(admin_client, content):
+    slide = Slide.objects.get(pk="welcome")
+    assert slide.layout == Slide.Layout.HERO
+    slide.items.all().delete()
+    body = " ".join(["word"] * 40)
+    form = {**_slide_form(slide, 0), "body_hu": "rövid", "body_en": body}
+    response = admin_client.post("/admin/signage/slide/welcome/change/", form, follow=True)
+    page = response.content.decode()
+    assert "EN: the body has 199 characters" in page and "HU: the body" not in page
+    assert Slide.objects.get(pk="welcome").body_en == body
+
+
+def test_the_admin_index_links_the_overview_which_needs_a_login(admin_client, client, content):
+    assert 'href="/admin/signage/overview/"' in admin_client.get("/admin/").content.decode()
+    response = client.get("/admin/signage/overview/")
+    assert response.status_code == 302 and response["Location"].startswith("/admin/login/")
+
+
+def test_lists_read_the_event_and_the_display_settings_once(admin_client, content, monkeypatch):
+    calls = Counter()
+    for model in (Event, DisplaySettings):
+        original = model.get_solo.__func__
+
+        def counting(cls, original=original):
+            calls[cls.__name__] += 1
+            return original(cls)
+
+        monkeypatch.setattr(model, "get_solo", classmethod(counting))
+    assert admin_client.get("/admin/signage/scheduleentry/").status_code == 200
+    assert admin_client.get("/admin/signage/slide/").status_code == 200
+    assert calls == {"Event": 1, "DisplaySettings": 1}
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "/admin/",
+        "/admin/signage/overview/",
+        "/admin/signage/event/",
+        "/admin/signage/displaysettings/",
+        "/admin/signage/game/",
+        FROM_TEMPLATE,
+    ],
+)
+def test_admin_pages_need_no_inline_style_or_script(admin_client, content, url):
+    response = admin_client.get(url)
+    policy = response["Content-Security-Policy"]
+    assert "default-src 'self'" in policy and "unsafe-inline" not in policy
+    page = response.content.decode()
+    assert " style=" not in page
+    assert not re.search(r"<script(?![^>]*\bsrc=)(?![^>]*application/json)[^>]*>", page)
+
+
+def test_game_colours_reach_the_list_without_a_style_attribute(admin_client, content):
+    page = admin_client.get("/admin/signage/game/").content.decode()
+    assert '<svg class="signage-swatch"' in page and 'fill="#c9a227"' in page
+
+
+def test_the_api_docs_start_without_an_inline_script(admin_client, db):
+    page = admin_client.get("/api/docs/").content.decode()
+    assert "<script" in page
+    assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", page)

@@ -30,10 +30,10 @@ export class ApiError extends Error {
   }
 }
 
-/** Whether asking again could help. A screen that does not exist, or a preview without a
-    login, gets the same answer every time. */
+/** Whether asking again could help. A screen that does not exist or is turned off, or a
+    preview without a login, gets the same answer every time. */
 export function isSettled(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 403 || error.status === 404);
+  return error instanceof ApiError && [403, 404, 410].includes(error.status);
 }
 
 export interface BundleParams {
