@@ -6,9 +6,11 @@ import pytest
 from django.contrib import admin
 from django.contrib.auth.models import Permission, User
 from django.core.cache import cache
+from django.core.exceptions import ValidationError
 from django.urls import reverse
 from django.utils import timezone
 
+from signage.concurrency import row_version
 from signage.models import (
     Announcement,
     AnnouncementTemplate,
@@ -16,6 +18,7 @@ from signage.models import (
     Event,
     Integration,
     Origin,
+    Screen,
     Slide,
 )
 
@@ -246,7 +249,10 @@ def test_bracket_needs_its_tournament_and_an_internal_address_is_accepted(admin_
 
 
 def _slide_form(slide: Slide, items: int) -> dict:
+    """What the slide's change page posts: its fields, `items` new items, and the version of
+    the row the page was opened with."""
     data = {
+        "row_version": row_version(slide),
         "layout": slide.layout,
         "source": slide.source,
         "enabled": "on",
@@ -282,6 +288,25 @@ def test_a_seventh_item_is_refused_instead_of_dropped_on_the_screen(admin_client
 
     assert admin_client.post(url, _slide_form(slide, 6)).status_code == 302
     assert slide.items.count() == 6
+
+
+def test_a_second_column_is_refused_where_the_layout_has_none(admin_client, content):
+    slide = Slide.objects.get(pk="house_rules")
+    slide.items.all().delete()
+    form = _slide_form(slide, 2)
+    form["items-1-column"] = "2"
+    response = admin_client.post("/admin/signage/slide/house_rules/change/", form)
+    assert response.status_code == 200
+    assert "Only the split layout shows a second column" in response.content.decode()
+    assert slide.items.count() == 0
+
+
+def test_a_layout_is_refused_with_a_source_it_does_not_draw(content):
+    slide = Slide.objects.get(pk="streams_live")
+    slide.source = Slide.Source.BRACKET
+    with pytest.raises(ValidationError) as raised:
+        slide.full_clean(exclude=["phases"])
+    assert "streams layout shows live:streams data" in str(raised.value.message_dict["source"])
 
 
 def test_a_split_column_refuses_a_fifth_item_that_the_layout_would_drop(admin_client, content):
@@ -463,3 +488,30 @@ def test_the_api_docs_start_without_an_inline_script(admin_client, db):
     page = admin_client.get("/api/docs/").content.decode()
     assert "<script" in page
     assert not re.search(r"<script(?![^>]*\bsrc=)[^>]*>", page)
+
+
+def test_a_failed_publication_leaves_no_announcement_on_any_screen(
+    admin_client, content, monkeypatch
+):
+    """The announcement and the screens it is for are saved together, or not at all: without
+    its screens it would show on every screen."""
+    from django.db import OperationalError
+
+    from signage.rendering.bundle import RenderContext, screen_announcements
+
+    template = AnnouncementTemplate.objects.filter(takeover=True).first()
+    lobby = Screen.objects.create(slug="lobby", name="Lobby")
+
+    def failing(self, objs, **kwargs):
+        raise OperationalError("the connection was lost")
+
+    monkeypatch.setattr(Announcement.screens.related_manager_cls, "set", failing)
+    admin_client.raise_request_exception = False
+    url = f"{FROM_TEMPLATE}?template={template.pk}"
+    form = {"template": template.pk, "duration_minutes": "10", "screens": [lobby.pk], "publish": ""}
+    form.update({f"ph_{name}": "x" for name in template.placeholders})
+    response = admin_client.post(url, form)
+    assert response.status_code == 500
+    assert not Announcement.objects.exists()
+    main = Screen.objects.get(slug="main")
+    assert screen_announcements(main, RenderContext.load(timezone.now())) == []

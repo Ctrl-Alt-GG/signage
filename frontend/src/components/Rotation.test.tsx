@@ -1,7 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Pass } from "../api/client";
+import type { LiveBracketPass, MatchRow, Pass, ServersLive } from "../api/client";
 import { makePass } from "../test-helpers";
 import { Rotation } from "./Rotation";
 
@@ -24,6 +24,16 @@ function rotation(passes: Pass[], onPassChange: (pass: Pass) => void) {
 async function wait(ms: number) {
   await act(() => vi.advanceTimersByTimeAsync(ms));
 }
+
+function match(id: number): MatchRow {
+  return {
+    id, team1: `ALPHA-${id}`, team2: `BETA-${id}`, score1: 0, score2: 0,
+    start_local: "20:00", round: "Round 1", status: "live",
+  };
+}
+
+/** Live data as an upstream might garble it, which no type describes. */
+const garbled = (live: unknown) => live as ServersLive;
 
 describe("Rotation", () => {
   beforeEach(() => {
@@ -93,12 +103,13 @@ describe("Rotation", () => {
   });
 
   it("shows all four live matches within one cycle without a poll restarting the pages", async () => {
-    const page = (number: number, ids: number[]) => makePass("tournament_live", {
+    const page = (number: number, ids: [number, number]) => makePass("tournament_live", {
       key: `tournament_live:hu:page-${number}`,
+      source: "live:bracket",
       layout: "tournament",
       duration_ms: 5000,
       live: {
-        live: ids.map((id) => ({ id, team1: `ALPHA-${id}`, team2: `BETA-${id}`, status: "live" })),
+        live: ids.map(match),
         live_page: { number, count: 2, first: ids[0], last: ids[1], total: 4 },
         upcoming: [], results: [], stale: false,
       },
@@ -118,8 +129,8 @@ describe("Rotation", () => {
     await wait(5000);
     expect(currentPage()).toBe("tournament_live:hu:page-1");
     const seen = new Set(onPassChange.mock.calls.flatMap((call) => {
-      const pass = call[0] as Pass;
-      return (pass.live as { live: { id: number }[] }).live.map((match) => match.id);
+      const pass = call[0] as LiveBracketPass;
+      return (pass.live?.live ?? []).map((row) => row.id);
     }));
     expect([...seen].sort()).toEqual([1, 2, 3, 4]);
   });
@@ -148,7 +159,9 @@ describe("Rotation", () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const onPassChange = vi.fn();
     // Live data is whatever the upstream sent. This is not a list of servers.
-    const broken = makePass("servers", { layout: "servers", live: { servers: "none" } });
+    const broken = makePass("servers", {
+      source: "live:projectile", layout: "servers", live: garbled({ servers: "none" }),
+    });
     const view = render(rotation([makePass("a"), broken, makePass("c")], onPassChange));
     await wait(0);
 
@@ -163,7 +176,9 @@ describe("Rotation", () => {
     view.rerender(rotation([makePass("a"), broken, makePass("c")], onPassChange));
     await wait(0);
     expect(document.querySelector('[data-slide="servers"]')).toBeNull();
-    const mended = makePass("servers", { layout: "servers", live: { servers: [], stale: false } });
+    const mended = makePass("servers", {
+      source: "live:projectile", layout: "servers", live: { servers: [], stale: false },
+    });
     view.rerender(rotation([makePass("a"), mended, makePass("c")], onPassChange));
     await wait(0);
     expect(document.querySelector('[data-slide="servers"]')).not.toBeNull();
@@ -171,7 +186,9 @@ describe("Rotation", () => {
 
   it("shows the empty state when no pass is left", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    const broken = makePass("servers", { layout: "servers", live: { servers: 5 } });
+    const broken = makePass("servers", {
+      source: "live:projectile", layout: "servers", live: garbled({ servers: 5 }),
+    });
     render(rotation([broken], vi.fn()));
     await wait(0);
     expect(screen.getByText("nothing")).toBeInTheDocument();

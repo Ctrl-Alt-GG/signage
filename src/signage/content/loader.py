@@ -10,6 +10,7 @@ rows created or edited in the admin never are.
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, time
 from decimal import Decimal
@@ -18,6 +19,7 @@ from pathlib import Path
 from django.db import transaction
 from django.utils.dateparse import parse_datetime
 
+from signage.concurrency import locked
 from signage.content import lint
 from signage.content.safe_yaml import load_yaml
 from signage.models import (
@@ -120,8 +122,10 @@ def _was_removed(model, key: str, report: Report, label: str, *, overwrite: bool
 
 def _seed_row(model, report: Report, label: str, lookup: dict, values: dict, *, overwrite: bool):
     """Create or update one seeded row. A row saved in the admin keeps its values unless
-    `overwrite` is requested; a row the seed touches goes back to the seed origin."""
-    existing = model.objects.filter(**lookup).first()
+    `overwrite` is requested; a row the seed touches goes back to the seed origin. The row is
+    read with a lock, so an organizer's change saved meanwhile is seen, and one saved after
+    this read waits for the import and then lands on top of it."""
+    existing = locked(model.objects.filter(**lookup))
     if existing and existing.origin == Origin.ADMIN and not overwrite:
         report.skipped.append(label)
         return existing
@@ -160,7 +164,8 @@ def _prune(model, report: Report, label: str, keys: set[str], *, prune: bool) ->
 def load_event(data: dict, *, overwrite: bool = False, prune: bool = False) -> Report:
     report = Report()
     is_new = not Event.objects.exists()
-    event = Event.get_solo()
+    event = locked(Event.objects.filter(pk=Event.get_solo().pk))
+    assert event is not None
     if event.origin != Origin.ADMIN or overwrite:
         ev, venue, wifi = data["event"], data["venue"], data["wifi"]
         event.name = ev["name"]
@@ -327,6 +332,11 @@ def _replace_items(slide: Slide, data: dict) -> None:
             )
     for row in rows:
         row.full_clean(exclude=["slide"])
+    # As the admin checks it (lint.item_limits), whatever called the loader.
+    columns, maximum = lint.item_limits(slide.layout)
+    counts = Counter(row.column for row in rows)
+    if set(counts) - columns or any(count > maximum for count in counts.values()):
+        raise lint.LintError(f"slide {slide.key}: its items don't fit the {slide.layout} layout")
     SlideItem.objects.bulk_create(rows)
 
 
@@ -337,7 +347,8 @@ def load_slides(data: dict, *, overwrite: bool = False, prune: bool = False) -> 
     phases = {p.key: p for p in Phase.objects.all()}
     for order, slide_data in enumerate(data["slides"]):
         key = slide_data["id"]
-        existing = Slide.objects.filter(pk=key).first()
+        # Locked, as in `_seed_row`: the slide's items and phases are replaced under it too.
+        existing = locked(Slide.objects.filter(pk=key))
         if existing and existing.origin == Origin.ADMIN and not overwrite:
             report.skipped.append(f"slide {key}")
             continue

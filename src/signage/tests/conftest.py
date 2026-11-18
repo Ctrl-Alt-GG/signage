@@ -13,13 +13,15 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 @pytest.fixture(scope="session")
 def django_db_modify_db_settings(django_db_modify_db_settings_parallel_suffix, tmp_path_factory):
-    """A test database in a file rather than in memory. Django never closes a connection to
-    an in-memory database, as that would delete it, so the one the health check opens in a
-    thread of its own would be left for the garbage collector."""
-    settings.DATABASES["default"]["TEST"] = {
-        **settings.DATABASES["default"].get("TEST", {}),
-        "NAME": str(tmp_path_factory.mktemp("database") / "signage.sqlite3"),
-    }
+    """With SQLite, a test database in a file rather than in memory. Django never closes a
+    connection to an in-memory database, as that would delete it, so the one the health
+    check opens in a thread of its own would be left for the garbage collector. With
+    PostgreSQL (DATABASE_URL), Django creates a test database next to the configured one."""
+    if settings.DATABASES["default"]["ENGINE"].endswith("sqlite3"):
+        settings.DATABASES["default"]["TEST"] = {
+            **settings.DATABASES["default"].get("TEST", {}),
+            "NAME": str(tmp_path_factory.mktemp("database") / "signage.sqlite3"),
+        }
 
 
 @pytest.fixture

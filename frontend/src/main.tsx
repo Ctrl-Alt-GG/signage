@@ -34,7 +34,7 @@ const queryClient = new QueryClient({
 /** Any path without a screen slug goes to the screen the admin marks as default. */
 function DefaultScreen() {
   const client = useMemo(() => makeClient(window.location.origin), []);
-  const query = useQuery({ queryKey: ["screens"], queryFn: () => fetchScreens(client) });
+  const query = useQuery({ queryKey: ["screens"], queryFn: ({ signal }) => fetchScreens(client, signal) });
   if (query.isPending) return null;
   const target = query.data?.find((screen) => screen.is_default) ?? query.data?.[0];
   return <Navigate to={`/display/${target?.slug ?? "main"}/`} replace />;

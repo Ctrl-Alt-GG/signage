@@ -11,22 +11,39 @@ import { SplitSlide } from "../layouts/SplitSlide";
 import { StreamsSlide } from "../layouts/StreamsSlide";
 import { TournamentSlide } from "../layouts/TournamentSlide";
 
-const LAYOUTS = {
+const TEXT_LAYOUTS = {
   hero: HeroSlide,
   list: ListSlide,
   split: SplitSlide,
   qr: QrSlide,
   credentials: CredentialsSlide,
-  now_next: NowNextSlide,
-  schedule: ScheduleSlide,
-  servers: ServersSlide,
-  tournament: TournamentSlide,
-  streams: StreamsSlide,
-  countdown: CountdownSlide,
 } as const;
 
+/** The live data of a pass is that of its source, so the source picks the layout, among
+    the ones its data suits when there are several. */
+function Layout({ pass }: { pass: Pass }) {
+  switch (pass.source) {
+    case "static": {
+      const Text = TEXT_LAYOUTS[pass.layout] ?? HeroSlide;
+      return <Text pass={pass} />;
+    }
+    case "live:clock":
+      return <CountdownSlide pass={pass} />;
+    case "live:schedule":
+      return pass.layout === "schedule" ? <ScheduleSlide pass={pass} /> : <NowNextSlide pass={pass} />;
+    case "live:projectile":
+      return <ServersSlide pass={pass} />;
+    case "live:bracket":
+      return <TournamentSlide pass={pass} />;
+    case "live:streams":
+      return <StreamsSlide pass={pass} />;
+    default:
+      // A source from a newer server than this page: its text, at least.
+      return <HeroSlide pass={pass} />;
+  }
+}
+
 export function SlidePass({ pass }: { pass: Pass }) {
-  const Layout = LAYOUTS[pass.layout as keyof typeof LAYOUTS] ?? HeroSlide;
   return (
     <section
       className="relative h-full w-full px-12 py-10"

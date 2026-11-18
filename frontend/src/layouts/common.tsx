@@ -1,7 +1,7 @@
 import { DynamicIcon, type IconName } from "lucide-react/dynamic";
 import type { ReactNode } from "react";
 
-import type { Pass, PassLang, SlideItem } from "../api/client";
+import type { Bilingual, Pass, PassLang, SlideItem } from "../api/client";
 import { Markdown } from "../components/Markdown";
 import { Text, UI, joined, pick, ui } from "../lib/i18n";
 
@@ -172,8 +172,8 @@ export function Items({
   );
 }
 
-export function EmptyState({ pass }: { pass: Pass }) {
-  const empty = pass.content.empty;
+/** The slide's own text for having nothing to show, or `text` when there is more to say. */
+export function EmptyState({ pass, text: empty = pass.content.empty }: { pass: Pass; text?: Bilingual }) {
   const hu = pick(empty, "hu") || UI.hu.nothing;
   const en = empty?.en && empty.en !== empty.hu ? empty.en : UI.en.nothing;
   if (pass.lang === "en") {

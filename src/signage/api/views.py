@@ -21,7 +21,13 @@ from signage.api.serializers import (
 from signage.integrations.base import EXPECTED_ERRORS, refresh_lock
 from signage.integrations.streams import StreamsClient
 from signage.models import DisplaySettings, Event, Screen
-from signage.rendering.bundle import active_announcements, announcement_view, build_bundle, stamp
+from signage.rendering.bundle import (
+    active_announcements,
+    announcement_view,
+    build_bundle,
+    shared_bundle,
+    stamp,
+)
 from signage.rendering.phases import resolve_phase
 from signage.rendering.schedule import build_schedule_view
 
@@ -116,15 +122,11 @@ class BundleView(APIView):
                 phase_override=phase_override,
             )
         else:
-            # What every screen asks for, every few seconds. Built once and shared for a
-            # moment, however many screens ask and whoever else does.
-            key = f"signage:bundle:{screen.pk}"
-            bundle = cache.get(key)
-            if bundle is None:
-                bundle = build_bundle(screen, now)
-                cache.set(key, bundle, settings.SIGNAGE_BUNDLE_CACHE_SECONDS)
+            bundle = shared_bundle(screen, now)
 
-        response = Response(stamp(bundle, now))
+        # The screen sets its clock by this: the time of sending, after a build that may
+        # have waited for the upstream systems.
+        response = Response(stamp(bundle, timezone.now()))
         response["Cache-Control"] = "no-store"
         return response
 

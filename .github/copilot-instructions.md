@@ -34,6 +34,7 @@ not hard-code versions; read them from `pyproject.toml`, `uv.lock`,
 - No alpine image variants. Each image contains only what its component
   needs to run.
 - The room never sees an error: live slides fall back to last-good data,
-  then to their `empty` text.
+  then to their `empty` text, or to a note that the upstream system can't
+  tell what is live.
 - Nothing is fetched from the public internet by the display: fonts, icons
   and QR codes are bundled or generated.

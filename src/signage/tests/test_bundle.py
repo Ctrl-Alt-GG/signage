@@ -198,6 +198,7 @@ def test_announcements_are_listed_most_important_first(event, screen, at):
     assert [a["id"] for a in announcements] == [str(urgent.pk), str(warning.pk), str(info.pk)]
     assert announcements[0]["takeover"] is True
 
+    urgent.starts_at = now - timedelta(minutes=5)
     urgent.ends_at = now - timedelta(seconds=1)
     urgent.save()
     assert [a["level"] for a in build_bundle(screen, now)["announcements"]] == ["warning", "info"]

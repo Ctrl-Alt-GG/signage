@@ -3,12 +3,30 @@ and the servers with player counts."""
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, TypedDict
 
-from signage.integrations.base import IntegrationClient
+from signage.integrations.base import Budget, IntegrationClient
 from signage.models import Game, Integration
 
 FALLBACK_COLOR = ("#777777", "#000000")
+
+
+class ServerCard(TypedDict):
+    name: str
+    info: str
+    game_slug: str
+    game_name: str
+    game_short: str
+    color_bg: str
+    color_text: str
+    players_text: str
+    online_players: int | None
+    max_players: int | None
+
+
+class ServersData(TypedDict):
+    servers: list[ServerCard]
+    announcement: str
 
 
 def _sort_key(server: dict[str, Any]) -> int:
@@ -28,12 +46,12 @@ def players_text(server: dict[str, Any]) -> str:
     return f"max: {max_players}" if max_players is not None else ""
 
 
-def parse_bundle(payload: dict[str, Any], games: list[Game]) -> dict[str, Any]:
+def parse_bundle(payload: dict[str, Any], games: list[Game]) -> ServersData:
     by_key: dict[str, Game] = {}
     for game in games:
         for key in game.projectile_keys:
             by_key[key.lower()] = game
-    servers = []
+    servers: list[ServerCard] = []
     for raw in sorted(payload.get("gameServers") or [], key=_sort_key):
         key = str(raw.get("game") or "").lower()
         game = by_key.get(key)
@@ -55,9 +73,9 @@ def parse_bundle(payload: dict[str, Any], games: list[Game]) -> dict[str, Any]:
     return {"servers": servers, "announcement": announcement.strip()}
 
 
-class ProjectileClient(IntegrationClient[dict[str, Any]]):
+class ProjectileClient(IntegrationClient[ServersData]):
     kind = Integration.Kind.PROJECTILE
 
-    def _request(self) -> dict[str, Any]:
-        payload = self.get_json("/bundle")
+    def _request(self, budget: Budget) -> ServersData:
+        payload = self.get_json("/bundle", budget)
         return parse_bundle(payload, list(Game.objects.all()))

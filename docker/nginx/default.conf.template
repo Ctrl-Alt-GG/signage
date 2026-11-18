@@ -38,6 +38,9 @@ server {
     listen 8080;
     server_name _;
     server_tokens off;
+    # Redirects name the path alone. An absolute one would carry this server's own scheme
+    # and port, http and 8080, not the ones the browser reached through the proxy.
+    absolute_redirect off;
 
     root /usr/share/nginx/html;
     index index.html;

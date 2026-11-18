@@ -1,18 +1,25 @@
 """Build the JSON bundle a screen polls: the slides in rotation, expanded into language
-passes, plus the active announcements, the phase and the clock."""
+passes, plus the active announcements, the phase and the clock.
+
+What a bundle reads, from the database and from the upstream systems, is loaded once into a
+`RenderContext` and shared by its slides, and by every screen when the admin overview builds
+them all. Building the bundle from it only projects."""
 
 from __future__ import annotations
 
 import logging
 import time
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db.models import Q
 from django.urls import reverse
 
+from signage.integrations.base import IntegrationClient, Result, refresh_lock
 from signage.integrations.bracket import BracketClient
 from signage.integrations.projectile import ProjectileClient
 from signage.integrations.streams import StreamsClient
@@ -32,10 +39,15 @@ from signage.rendering.schedule import build_schedule_view
 
 log = logging.getLogger(__name__)
 
-LIVE_CLIENTS = {
-    Slide.Source.PROJECTILE: ProjectileClient,
-    Slide.Source.BRACKET: BracketClient,
-    Slide.Source.STREAMS: StreamsClient,
+CLIENTS: dict[str, type[IntegrationClient]] = {
+    Integration.Kind.PROJECTILE: ProjectileClient,
+    Integration.Kind.BRACKET: BracketClient,
+    Integration.Kind.STREAMS: StreamsClient,
+}
+LIVE_SOURCES = {
+    Slide.Source.PROJECTILE: Integration.Kind.PROJECTILE,
+    Slide.Source.BRACKET: Integration.Kind.BRACKET,
+    Slide.Source.STREAMS: Integration.Kind.STREAMS,
 }
 
 
@@ -57,6 +69,54 @@ Values = dict[str, dict[str, str]]
 
 def placeholder_values(event: Event) -> Values:
     return {lang: event.placeholder_values(lang) for lang in LANGS}
+
+
+@dataclass
+class RenderContext:
+    """What building bundles at `now` reads, read once: the event and its placeholder values,
+    the display settings, the integration settings, and, when a slide first needs them, the
+    schedule, the announcements and each upstream system's answer. The upstream systems are
+    asked until `deadline`, a `time.monotonic()` value."""
+
+    event: Event
+    now: datetime
+    deadline: float
+    display: DisplaySettings
+    integrations: dict[str, Integration]
+    values: Values
+    _schedule: dict[str, Any] | None = None
+    _announcements: list[Announcement] | None = None
+    _results: dict[str, Result] = field(default_factory=dict)
+
+    @classmethod
+    def load(cls, now: datetime) -> RenderContext:
+        event = Event.get_solo()
+        return cls(
+            event=event,
+            now=now,
+            deadline=time.monotonic() + settings.SIGNAGE_BUNDLE_UPSTREAM_SECONDS,
+            display=DisplaySettings.get_solo(),
+            integrations={row.kind: row for row in Integration.objects.all()},
+            values=placeholder_values(event),
+        )
+
+    def schedule(self) -> dict[str, Any]:
+        if self._schedule is None:
+            self._schedule = build_schedule_view(self.event, self.now).as_dict()
+        return self._schedule
+
+    def announcements(self) -> list[Announcement]:
+        if self._announcements is None:
+            self._announcements = active_announcements(self.now)
+        return self._announcements
+
+    def client(self, kind: str) -> IntegrationClient:
+        return CLIENTS[kind](self.integrations.get(kind))
+
+    def result(self, kind: str) -> Result:
+        if kind not in self._results:
+            self._results[kind] = self.client(kind).fetch(self.deadline)
+        return self._results[kind]
 
 
 def _resolved_pair(slide: Slide, field: str, values: Values) -> dict[str, str]:
@@ -122,36 +182,30 @@ def slide_content(slide: Slide, event: Event, values: Values | None = None) -> d
     return content
 
 
-def live_data(
-    slide: Slide,
-    event: Event,
-    now: datetime,
-    warnings: list[str],
-    deadline: float | None = None,
-) -> dict | None:
+def live_data(slide: Slide, context: RenderContext, warnings: list[str]) -> dict | None:
     """Return the live view model for a slide, or None when the slide must be dropped."""
+    event, now = context.event, context.now
     if slide.source == Slide.Source.STATIC:
         return None
     if slide.source == Slide.Source.SCHEDULE:
-        return build_schedule_view(event, now).as_dict()
+        return context.schedule()
     if slide.source == Slide.Source.CLOCK:
         if event.starts_at <= now:
             warnings.append(f"{slide.key}: countdown target has passed")
             return None
         return {"target": event.starts_at.isoformat(), "passed": False}
-    client = LIVE_CLIENTS[slide.source]()
-    if not client.enabled:
-        warnings.append(f"{slide.key}: disabled, the {client.kind} integration is not configured")
+    kind = LIVE_SOURCES[slide.source]
+    if not context.client(kind).enabled:
+        warnings.append(f"{slide.key}: disabled, the {kind} integration is not configured")
         return None
-    result = client.fetch(deadline)
+    result = context.result(kind)
     if result.data is None:
         # Why is for the admin overview: the bundle is public, and the error names the
         # upstream's internal address.
         return {"empty": True, "stale": True}
     data = dict(result.data)
-    # Stale when our transport cache is stale or when the upstream reports its own source
-    # as stale (Streams does), so neither case shows as fresh.
-    data["stale"] = bool(result.stale) or data.get("source_status") == "stale"
+    # Not current: the last good answer stands in, or the upstream says its own is old.
+    data["stale"] = result.stale
     if slide.source == Slide.Source.STREAMS:
         # The address of a thumbnail never changes, and a screen keeps every slide loaded,
         # so its browser would show the first frame for the rest of the day. The version
@@ -208,26 +262,24 @@ def announcement_view(announcement: Announcement) -> dict[str, Any]:
     }
 
 
-def screen_announcements(
-    screen: Screen, now: datetime, deadline: float | None = None
-) -> list[dict[str, Any]]:
+def screen_announcements(screen: Screen, context: RenderContext) -> list[dict[str, Any]]:
     """What a screen announces: the announcements for every screen and those for this one,
     then the one mirrored from Projectile."""
     views = []
-    for announcement in active_announcements(now):
+    for announcement in context.announcements():
         screens = announcement.screens.all()
         if not screens or any(candidate.pk == screen.pk for candidate in screens):
             views.append(announcement_view(announcement))
-    if mirrored := _mirrored_announcement(deadline):
+    if mirrored := _mirrored_announcement(context):
         views.append(mirrored)
     return views
 
 
-def _mirrored_announcement(deadline: float | None = None) -> dict | None:
-    config = Integration.objects.filter(kind=Integration.Kind.PROJECTILE).first()
+def _mirrored_announcement(context: RenderContext) -> dict | None:
+    config = context.integrations.get(Integration.Kind.PROJECTILE)
     if not config or not config.mirror_announcement or not config.is_configured:
         return None
-    result = ProjectileClient(config).fetch(deadline)
+    result = context.result(Integration.Kind.PROJECTILE)
     text = (result.data or {}).get("announcement") or ""
     if not text:
         return None
@@ -254,7 +306,6 @@ def _passes_for(
         "source": slide.source,
         "duration_ms": duration_ms,
         "content": content,
-        "live": live,
     }
     if preview_lang in (*LANGS, "both"):
         langs = [preview_lang]
@@ -288,9 +339,12 @@ def _passes_for(
             }
         suffix = f":page-{page + 1}" if page_count > 1 else ""
         for lang in langs:
-            passes.append(
-                {**base, "live": page_live, "key": f"{slide.key}:{lang}{suffix}", "lang": lang}
-            )
+            row = {**base, "key": f"{slide.key}:{lang}{suffix}", "lang": lang}
+            # A text slide has no live data at all. A live one has null for it in a
+            # preview, when its upstream system isn't configured.
+            if slide.source != Slide.Source.STATIC:
+                row["live"] = page_live
+            passes.append(row)
     return passes
 
 
@@ -301,10 +355,11 @@ def build_bundle(
     preview_slide: str | None = None,
     preview_lang: str | None = None,
     phase_override: str | None = None,
+    context: RenderContext | None = None,
 ) -> dict[str, Any]:
-    event = Event.get_solo()
+    context = context or RenderContext.load(now)
+    event = context.event
     warnings: list[str] = []
-    deadline = time.monotonic() + settings.SIGNAGE_BUNDLE_UPSTREAM_SECONDS
     phase = resolve_phase(event, now)
     if phase_override:
         phase = Phase.objects.filter(key=phase_override).first() or phase
@@ -314,10 +369,10 @@ def build_bundle(
     else:
         slides = select_slides(screen, phase, now)
 
-    values = placeholder_values(event)
+    values = context.values
     passes: list[dict] = []
     for slide in slides:
-        live = live_data(slide, event, now, warnings, deadline)
+        live = live_data(slide, context, warnings)
         if slide.is_live and live is None and not preview_slide:
             continue
         try:
@@ -332,9 +387,9 @@ def build_bundle(
         )
         passes.extend(slide_passes)
 
-    announcements = [] if preview_slide else screen_announcements(screen, now, deadline)
+    announcements = [] if preview_slide else screen_announcements(screen, context)
 
-    display = DisplaySettings.get_solo()
+    display = context.display
     return {
         "generated_at": now.astimezone(event.tz).isoformat(),
         "screen": {
@@ -377,8 +432,30 @@ def build_bundle(
     }
 
 
+def shared_bundle(screen: Screen, now: datetime) -> dict[str, Any]:
+    """What every screen asks for, every few seconds: built once and shared for a moment,
+    however many screens and others ask at once. While one request builds it, the others get
+    the bundle before it; with none yet, they wait for the one being built rather than build
+    it again. When that build fails, the next one in line builds."""
+    key = f"signage:bundle:{screen.pk}"
+    if (bundle := cache.get(key)) is not None:
+        return bundle
+    previous = cache.get(f"{key}:last")
+    with refresh_lock(f"bundle-{screen.pk}", wait=previous is None) as acquired:
+        if not acquired:
+            return previous
+        # Built by another request while this one waited.
+        if (bundle := cache.get(key)) is not None:
+            return bundle
+        bundle = build_bundle(screen, now)
+        cache.set(key, bundle, settings.SIGNAGE_BUNDLE_CACHE_SECONDS)
+        cache.set(f"{key}:last", bundle, settings.SIGNAGE_LAST_GOOD_SECONDS)
+        return bundle
+
+
 def stamp(bundle: dict[str, Any], now: datetime) -> dict[str, Any]:
-    """A bundle with the time of this answer. Bundles are kept for a moment to be shared
-    between screens, while each screen sets its clock by the time in the one it gets."""
+    """A bundle with the time of this answer, `now`, taken just before it is sent. Bundles
+    are kept for a moment to be shared between screens, and a cold one can take a while to
+    build, while each screen sets its clock by the time in the one it gets."""
     local = now.astimezone(ZoneInfo(bundle["clock"]["timezone"])).isoformat()
     return {**bundle, "generated_at": local, "clock": {**bundle["clock"], "now": local}}

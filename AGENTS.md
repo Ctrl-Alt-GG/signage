@@ -67,6 +67,20 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   the event included, carries `origin=admin` and later imports skip it
   unless overwrite is requested, so a redeploy never undoes an organizer's
   edit. The background SVG is exchangeable in the admin.
+- Concurrent edits never overwrite each other silently. An import locks the
+  rows it checks for `origin=admin` before it writes them. An admin form
+  carries the version of the row it was opened on
+  (`src/signage/concurrency.py`); when the row has changed since, saving is
+  refused and the organizer reloads it.
+- The database keeps the invariants that forms and the import check:
+  date windows, ranges and the stage geometry are check constraints
+  (`signage/migrations/0006_database_checks.py`), so a script or a bulk
+  update cannot store what no screen can show.
+- A slide's source decides its live data and the layouts that can draw it.
+  `LAYOUT_SOURCES` in `src/signage/content/lint.py` is the one table of
+  them: the import, the admin and the API schema follow it. A bundle's
+  passes are a union keyed by `source`, so the display's types for live
+  data come from the schema, never written by hand.
 - Files: nginx serves Django's static files, collected while building the
   frontend image. Uploaded backgrounds live on the backend's persistent
   `media` volume and are served only through the sandboxed background API.
@@ -76,6 +90,15 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
 - Access rights are fixed: the API is read-only and anonymous, the admin
   is staff-only. Upstream errors name internal addresses, so they appear in
   the admin overview and never in the API.
+- An upstream operation has one deadline for all of its requests, and an
+  answer has a size limit (`SIGNAGE_UPSTREAM_MAX_BYTES`,
+  `SIGNAGE_THUMBNAIL_MAX_BYTES`). One request at a time builds the shared
+  bundle of a screen or fetches a thumbnail; the others get the previous
+  one, or wait for the first when there is none.
+- An answer from Streams counts as an observation only when Streams says
+  it could see its media server. While it can't, the channels it last
+  confirmed stay on screen, marked as not current, until that observation
+  is `SIGNAGE_STREAMS_RETAIN_SECONDS` old.
 - The admin runs on `signage.sites.SignageAdminSite`; its own pages, such
   as the overview, are URLs of that site. Django's CSP middleware serves
   the admin and the API without inline script or style: admin styles go in
@@ -93,8 +116,17 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   at 0.72em; one-line labels join the two with a middle dot. Hungarian is
   required, English falls back to Hungarian.
 - Live slides fall back to last-good data, then to their `empty` text.
-  The room never sees an error: a screen turned off in the admin answers
-  410 and shows only the background. An unknown screen says so.
+  A Streams slide that has neither says that the live streams can't be
+  listed, rather than that none is live. The room never sees an error: a
+  screen turned off in the admin answers 410 and shows only the
+  background. An unknown screen says so.
+- A request for the bundle gives up after 30 seconds, so the screen keeps
+  asking. Live slides leave the rotation five minutes after the screen
+  should have had a newer answer, whether its requests failed or still
+  wait; the countdown stays, as it runs on the screen's clock.
+- Live layouts fit the content-safe area with full lists in both
+  languages: eight server cards, four stream tiles, two live matches with
+  four upcoming and three results, six schedule rows.
 - A now/next column shows two entries, or one and the count of the
   others.
 - The Wi-Fi layout reads exact structured credentials, preserving spaces.
@@ -122,7 +154,10 @@ Do not repeat versions or URLs in prose; link to the file that pins them.
   only an organizer knows stays `CHANGE-ME` in the seed and is set in the
   admin; the app drops a slide with an unresolved value.
 - API changes: edit the serializers, regenerate the schema and the
-  TypeScript types (section 7), then adjust the frontend.
+  TypeScript types (section 7), then adjust the frontend. A new layout or
+  source goes into `LAYOUT_SOURCES`, the `Slide` choices and, for live
+  data, `LIVE_SERIALIZERS` in `src/signage/api/serializers.py`; a test
+  checks that they agree and that real bundles match the schema.
 - No new framework, bundler, queue or storage service without a line in
   section 3 saying why.
 - `.github/workflows/**` changes only when the workflow is the subject of
@@ -209,11 +244,29 @@ uv run pytest                              # Django checks, migrations, content 
 uv run python manage.py spectacular --file frontend/openapi.yaml --validate
 (cd frontend && pnpm openapi && pnpm typecheck && pnpm test && pnpm build)
 (cd frontend && pnpm preview) &            # :4173, proxies the backend on :8000
-uv run python scripts/screenshots.py       # safe area, clipping and overflow checks
+uv run python scripts/screenshots.py       # safe area, clipping and overflow, with full live data
 ```
 
-The pipeline runs the same commands, then builds the two images and,
-on `main` and `v*` tags, publishes them to GHCR.
+Production runs PostgreSQL. With `DATABASE_URL` set to a PostgreSQL
+database whose user may create databases, `uv run pytest` runs on it: the
+constraints and the migrations of populated tables as PostgreSQL applies
+them, and the tests marked `postgres` that SQLite skips, where an import
+and organizers save the same rows at once.
+
+`scripts/smoke.py` checks the two images served together: routing on one
+origin, the headers of each part, and signing in to the admin through
+nginx.
+
+```bash
+docker compose -f compose.local.yaml up --build --detach --wait
+docker compose -f compose.local.yaml exec -T -e DJANGO_SUPERUSER_PASSWORD=<password> \
+  web python manage.py createsuperuser --noinput --username smoke --email smoke@example.invalid
+uv run python scripts/smoke.py --username smoke --password <password>
+docker compose -f compose.local.yaml down --volumes
+```
+
+The pipeline runs all of these, then builds the two images and, on
+`main` and `v*` tags, publishes them to GHCR.
 
 ## 9. Do-not-touch list
 

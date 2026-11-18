@@ -9,9 +9,16 @@ Writes screenshots/<slide>-<lang>.png and screenshots/announcement-<name>.png (g
 and exits non-zero when any visible text lies outside the content-safe area, is cut off by
 its box, or a slide overflows its box.
 
+Live slides are shown with live data as full as their layouts take: long lists of servers,
+matches and streams, the schedule from content/schedule.yaml at its busiest slot, and a
+countdown of days. Streams slides are also shown in the state where Streams can't tell
+which channels are live.
+
 Announcements are checked with every template of content/announcements.yaml filled in with
-values of a realistic length, and with texts as long as the admin accepts. They are put
-into the answer the display gets from the backend, so nothing is written to the database.
+values of a realistic length, and with texts as long as the admin accepts.
+
+Live data and announcements are put into the answer the display gets from the backend, so
+nothing is written to the database and no upstream system is needed.
 """
 
 from __future__ import annotations
@@ -20,6 +27,8 @@ import argparse
 import glob
 import re
 import sys
+from datetime import UTC, datetime, timedelta
+from itertools import groupby
 from pathlib import Path
 
 import yaml
@@ -55,6 +64,26 @@ LONGEST = {
 }
 # The bar shows a long text one language at a time and switches after this long.
 BAR_PAGE_MS = 8_000
+BUNDLE_ROUTE = "**/api/v1/screens/*/bundle/**"
+
+TEAMS = [
+    "Clutch Kings",
+    "Eco Round Enjoyers",
+    "Óbudai Headshot Egylet",
+    "Ninjas in Pyjamas Fan Club",
+    "Rush B No Stop",
+    "Flashbang Felelősök",
+    "Lan Party Veterans",
+    "Kockafej Kollektíva",
+]
+CHANNELS = [
+    ("Main stage: CS2 tournament", False),
+    ("Minecraft build-off", False),
+    ("Casters' desk", True),
+    ("OpenTTD rail network", False),
+    ("Retro corner", False),
+    ("Night shift radio", True),
+]
 
 CHECK_JS = """
 ({safe, tolerance, within}) => {
@@ -114,6 +143,19 @@ CHECK_JS = """
   if (slide && slide.scrollHeight > slide.clientHeight + tolerance) {
     errors.push(`slide overflows by ${slide.scrollHeight - slide.clientHeight}px`);
   }
+  // A card taller than its grid runs into what comes after the grid, such as the footer,
+  // with none of its own text cut off.
+  for (const grid of slide ? slide.querySelectorAll('*') : []) {
+    if (getComputedStyle(grid).display !== 'grid') continue;
+    const bottom = grid.getBoundingClientRect().bottom;
+    for (const cell of grid.children) {
+      const over = cell.getBoundingClientRect().bottom - bottom;
+      if (over > tolerance) {
+        const snippet = cell.textContent.trim().slice(0, 40);
+        errors.push(`box taller than its grid: "${snippet}" (${Math.round(over)}px)`);
+      }
+    }
+  }
   return {errors};
 }
 """
@@ -156,6 +198,123 @@ def announcement_cases() -> list[dict]:
     return cases
 
 
+def _load(name: str) -> dict:
+    with (ROOT / "content" / name).open(encoding="utf-8") as handle:
+        return yaml.safe_load(handle)
+
+
+def _schedule_sample() -> dict:
+    """The schedule of content/schedule.yaml with "now" at its busiest slot."""
+    games = {
+        game["slug"]: {
+            "slug": game["slug"],
+            "name": game["name"],
+            "short": game["short"],
+            "color_bg": game["color"]["bg"],
+            "color_text": game["color"]["text"],
+        }
+        for game in _load("games.yaml")["games"]
+    }
+    starts = datetime.fromisoformat(_load("event.yaml")["event"]["starts_at"])
+    empty = {"hu": "", "en": ""}
+    views = [
+        {
+            "time": entry["time"],
+            "type": entry["type"],
+            "label": entry.get("label", ""),
+            "title": entry["title"],
+            "note": entry.get("note") or empty,
+            "game": games.get(entry.get("game") or ""),
+            "starts_at": datetime.combine(
+                starts.date() + timedelta(days=entry["day_offset"]),
+                datetime.strptime(entry["time"], "%H:%M").time(),
+                starts.tzinfo,
+            ).isoformat(),
+        }
+        for entry in _load("schedule.yaml")["entries"]
+    ]
+    slots = [list(group) for _, group in groupby(views, key=lambda view: view["starts_at"])]
+    busiest = max(range(len(slots)), key=lambda index: len(slots[index]))
+    return {
+        "now": slots[busiest],
+        "next": slots[busiest + 1] if busiest + 1 < len(slots) else [],
+        "later": [view for slot in slots[busiest + 2 :] for view in slot],
+        "upcoming": [view for slot in slots[busiest:] for view in slot],
+    }
+
+
+def _match(number: int, status: str) -> dict:
+    return {
+        "id": number,
+        "team1": TEAMS[number % len(TEAMS)],
+        "team2": TEAMS[(number + 3) % len(TEAMS)],
+        "score1": 13 if status == "finished" else number % 9,
+        "score2": 11 if status == "finished" else 7,
+        "start_local": f"{20 + number // 4}:{number % 4 * 15:02d}",
+        "round": "Upper bracket semi-final",
+        "status": status,
+    }
+
+
+def live_samples() -> dict[str, dict]:
+    """Live data of each source with as much in it as its layout shows, and more."""
+    servers = [
+        {
+            "name": f"Ctrl-Alt-GG {game['name']} #{number}",
+            "info": "",
+            "game_slug": game["slug"],
+            "game_name": game["name"],
+            "game_short": game["short"],
+            "color_bg": game["color"]["bg"],
+            "color_text": game["color"]["text"],
+            "players_text": f"{number + 9}/{number + 24}",
+        }
+        for number, game in enumerate(_load("games.yaml")["games"][:12], start=1)
+    ]
+    channels = [
+        {
+            "id": f"channel-{number}",
+            "name": name,
+            "audio_only": audio_only,
+            "thumbnail_url": "",
+            "watch_url": "",
+        }
+        for number, (name, audio_only) in enumerate(CHANNELS, start=1)
+    ]
+    return {
+        "live:clock": {
+            "target": (datetime.now(UTC) + timedelta(days=3, hours=4)).isoformat(),
+            "passed": False,
+        },
+        "live:schedule": _schedule_sample(),
+        "live:projectile": {"servers": servers, "stale": False},
+        "live:bracket": {
+            "id": 1,
+            "name": "Ctrl-Alt-GG CS2 Cup",
+            "live": [_match(1, "live"), _match(2, "awaiting")],
+            "live_page": {"number": 1, "count": 2, "first": 1, "last": 2, "total": 4},
+            "upcoming": [_match(number, "scheduled") for number in range(3, 9)],
+            "results": [_match(number, "finished") for number in range(9, 14)],
+            "stale": False,
+        },
+        "live:streams": {
+            "live": channels,
+            "source_status": "fresh",
+            "observed_at": datetime.now(UTC).isoformat(),
+            "age_seconds": 2.0,
+            "stale": False,
+        },
+    }
+
+
+# Other states a live slide has, shot as <slide>-<state>-<lang>.png.
+LIVE_STATES = {
+    "live:streams": {
+        "unavailable": {"live": [], "source_status": "unavailable", "stale": True},
+    },
+}
+
+
 def check_announcements(page, args, out: Path, failures: list[str]) -> int:
     """Show each announcement on a screen and check that all of its text can be read."""
     cases = announcement_cases()
@@ -168,7 +327,7 @@ def check_announcements(page, args, out: Path, failures: list[str]) -> int:
         bundle["announcements"][0].pop("name")
         route.fulfill(response=response, json=bundle)
 
-    page.route("**/api/v1/screens/*/bundle/**", with_announcement)
+    page.route(BUNDLE_ROUTE, with_announcement)
     # Any slide will do behind a bar; a preview keeps it from changing meanwhile.
     url = f"{args.base_url}/display/{args.screen}/?preview={args.announcement_slide}&lang=hu"
     for case in cases:
@@ -200,7 +359,7 @@ def check_announcements(page, args, out: Path, failures: list[str]) -> int:
                     failures.append(f"announcement {case['name']}{suffix}: text is not all shown")
             for error in result["errors"]:
                 failures.append(f"announcement {case['name']}{suffix}: {error}")
-    page.unroute("**/api/v1/screens/*/bundle/**")
+    page.unroute(BUNDLE_ROUTE)
     return len(cases)
 
 
@@ -226,7 +385,9 @@ def main() -> int:
         document = yaml.safe_load(handle)
     default_mode = document.get("defaults", {}).get("bilingual_mode", "alternate")
     modes = {s["id"]: s.get("bilingual_mode", default_mode) for s in document["slides"]}
+    sources = {s["id"]: s.get("source", "static") for s in document["slides"]}
     slides = args.slides or list(modes)
+    samples = live_samples()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     failures: list[str] = []
@@ -242,26 +403,45 @@ def main() -> int:
                 raise
             browser = playwright.chromium.launch(executable_path=path)
         page = browser.new_page(viewport={"width": 1920, "height": 1080}, device_scale_factor=1)
+        live: dict = {}
+
+        def with_live(route):
+            response = route.fetch()
+            bundle = response.json()
+            for pass_ in bundle["passes"]:
+                if pass_["source"] in live:
+                    pass_["live"] = live[pass_["source"]]
+            route.fulfill(response=response, json=bundle)
+
+        page.route(BUNDLE_ROUTE, with_live)
         for slide in slides:
+            source = sources.get(slide, "static")
+            states = {"": samples.get(source), **LIVE_STATES.get(source, {})}
             # Stacked slides show both languages on one pass, so shoot that pass instead.
             langs = ["both"] if modes.get(slide) == "stacked" else args.langs.split(",")
-            for lang in langs:
-                url = f"{args.base_url}/display/{args.screen}/?preview={slide}&lang={lang}"
-                page.goto(url, wait_until="networkidle")
-                try:
-                    page.wait_for_selector("[data-slide]", timeout=10_000)
-                except PlaywrightError:
-                    failures.append(f"{slide}/{lang}: no slide rendered")
-                    page.screenshot(path=str(out / f"{slide}-{lang}.png"))
-                    continue
-                page.evaluate("document.fonts.ready")
-                page.wait_for_timeout(600)
-                page.screenshot(path=str(out / f"{slide}-{lang}.png"))
-                result = page.evaluate(
-                    CHECK_JS, {"safe": SAFE, "tolerance": TOLERANCE, "within": None}
-                )
-                for error in result["errors"]:
-                    failures.append(f"{slide}/{lang}: {error}")
+            for state, data in states.items():
+                live.clear()
+                if data is not None:
+                    live[source] = data
+                name = f"{slide}-{state}" if state else slide
+                for lang in langs:
+                    url = f"{args.base_url}/display/{args.screen}/?preview={slide}&lang={lang}"
+                    page.goto(url, wait_until="networkidle")
+                    try:
+                        page.wait_for_selector("[data-slide]", timeout=10_000)
+                    except PlaywrightError:
+                        failures.append(f"{name}/{lang}: no slide rendered")
+                        page.screenshot(path=str(out / f"{name}-{lang}.png"))
+                        continue
+                    page.evaluate("document.fonts.ready")
+                    page.wait_for_timeout(600)
+                    page.screenshot(path=str(out / f"{name}-{lang}.png"))
+                    result = page.evaluate(
+                        CHECK_JS, {"safe": SAFE, "tolerance": TOLERANCE, "within": None}
+                    )
+                    for error in result["errors"]:
+                        failures.append(f"{name}/{lang}: {error}")
+        page.unroute(BUNDLE_ROUTE)
         if not args.skip_announcements:
             announcements = check_announcements(page, args, out, failures)
         browser.close()

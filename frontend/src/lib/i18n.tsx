@@ -31,6 +31,7 @@ export const UI = {
     network: "Hálózat",
     password: "Jelszó",
     liveMatchPages: "Élő meccsek oldala",
+    streamsUnavailable: "Az élő adások listája most nem érhető el.",
   },
   en: {
     stale: "data may be stale",
@@ -55,6 +56,7 @@ export const UI = {
     network: "Network",
     password: "Password",
     liveMatchPages: "Live match page",
+    streamsUnavailable: "The list of live streams is not available right now.",
   },
 } as const;
 

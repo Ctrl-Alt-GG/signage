@@ -1,8 +1,18 @@
-import type { Announcement, Bundle, Pass } from "./api/client";
+import { vi } from "vitest";
 
-/** A static list slide, which needs nothing but its text. */
+import type { Announcement, Bundle, Pass, PassOf, StaticPass } from "./api/client";
+
+type LiveSource = Exclude<Pass["source"], "static">;
+
+/** A pass with the text of a list slide: a static list slide, or a live pass of the source,
+    layout and live data the overrides name. */
+export function makePass(slide: string, overrides?: Partial<StaticPass>): StaticPass;
+export function makePass<S extends LiveSource>(
+  slide: string,
+  overrides: Partial<PassOf<S>> & Pick<PassOf<S>, "layout"> & { source: S },
+): PassOf<S>;
 export function makePass(slide: string, overrides: Partial<Pass> = {}): Pass {
-  return {
+  const pass: StaticPass = {
     key: `${slide}:hu`,
     slide,
     layout: "list",
@@ -20,9 +30,8 @@ export function makePass(slide: string, overrides: Partial<Pass> = {}): Pass {
       labels: {},
       link: null,
     },
-    live: null,
-    ...overrides,
   };
+  return { ...pass, ...overrides } as Pass;
 }
 
 export function makeAnnouncement(overrides: Partial<Announcement> = {}): Announcement {
@@ -67,4 +76,23 @@ export function makeBundle(overrides: Partial<Bundle> = {}): Bundle {
     preview: false,
     ...overrides,
   };
+}
+
+/** A request that the server takes and never answers. Like a real one, it ends when it is
+    aborted. */
+export function hangingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+  return new Promise((_, reject) => {
+    signal?.addEventListener("abort", () => reject(signal.reason));
+  });
+}
+
+/** AbortSignal.timeout keeps its own time, which fake timers do not move. These signals
+    keep it with setTimeout, so advancing the fake clock reaches them. */
+export function fakeAbortTimeouts() {
+  vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException("The request timed out.", "TimeoutError")), ms);
+    return controller.signal;
+  });
 }

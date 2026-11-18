@@ -44,6 +44,37 @@ def test_split_needs_two_columns():
         lint.lint_slides(bad, PHASES)
 
 
+def test_a_layout_shows_only_the_source_it_draws():
+    """A streams slide fed tournament data would show matches as nameless channels."""
+    bad = copy.deepcopy(GOOD)
+    bad["slides"][0].update(layout="streams", source="live:bracket", items=[])
+    with pytest.raises(lint.LintError, match="the streams layout shows live:streams data"):
+        lint.lint_slides(bad, PHASES)
+    text = copy.deepcopy(GOOD)
+    text["slides"][0]["source"] = "live:clock"
+    with pytest.raises(lint.LintError, match="the list layout shows static data"):
+        lint.lint_slides(text, PHASES)
+
+
+def test_a_split_slide_lists_its_items_under_its_columns():
+    """Items above the columns would land in the first one, beyond what it shows."""
+    bad = copy.deepcopy(GOOD)
+    bad["slides"][0]["layout"] = "split"
+    bad["slides"][0]["columns"] = [
+        {"title": {"hu": "a", "en": "b"}, "items": [{"hu": "x", "en": "y"}] * 4},
+        {"title": {"hu": "c", "en": "d"}, "items": []},
+    ]
+    with pytest.raises(lint.LintError, match="under its two columns"):
+        lint.lint_slides(bad, PHASES)
+
+
+def test_only_the_split_layout_has_columns():
+    bad = copy.deepcopy(GOOD)
+    bad["slides"][0]["columns"] = [{"title": {"hu": "a", "en": "b"}, "items": []}] * 2
+    with pytest.raises(lint.LintError, match="only the split layout shows columns"):
+        lint.lint_slides(bad, PHASES)
+
+
 def test_unknown_phase_fails():
     bad = copy.deepcopy(GOOD)
     bad["slides"][0]["phases"] = ["afterparty"]

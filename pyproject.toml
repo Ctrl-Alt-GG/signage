@@ -49,4 +49,7 @@ DJANGO_SETTINGS_MODULE = "config.settings.development"
 pythonpath = ["src", "."]
 testpaths = ["src/signage/tests"]
 addopts = "-q"
+markers = [
+    "postgres: needs PostgreSQL, as production runs (DATABASE_URL); skipped on SQLite",
+]
 filterwarnings = ["error::DeprecationWarning:signage", "default"]

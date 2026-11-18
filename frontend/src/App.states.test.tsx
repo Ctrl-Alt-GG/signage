@@ -5,14 +5,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Bundle } from "./api/client";
 import { App } from "./App";
-import { makeAnnouncement, makeBundle, makePass } from "./test-helpers";
+import { fakeAbortTimeouts, hangingFetch, makeAnnouncement, makeBundle, makePass } from "./test-helpers";
 
-type Answer = { status: number; body: unknown } | "unreachable";
+type Answer = { status: number; body: unknown } | "unreachable" | "hanging";
 
 /** Serves the bundle requests from a list of answers, repeating the last one. */
 function serve(...answers: Answer[]) {
-  const fetchMock = vi.fn(async () => {
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const answer = answers.length > 1 ? answers.shift() : answers[0];
+    if (answer === "hanging") return hangingFetch(input, init);
     if (answer === undefined || answer === "unreachable") throw new TypeError("Failed to fetch");
     return new Response(JSON.stringify(answer.body), {
       status: answer.status,
@@ -24,6 +25,12 @@ function serve(...answers: Answer[]) {
 }
 
 const ok = (bundle: Bundle): Answer => ({ status: 200, body: bundle });
+
+/** The requests for a bundle among those the page made: it also checks for a new build. */
+function bundleRequests(fetchMock: ReturnType<typeof serve>): number {
+  return fetchMock.mock.calls.filter(([input]) => input instanceof Request && input.url.includes("/bundle/"))
+    .length;
+}
 
 function renderApp(path = "/display/main/") {
   const queryClient = new QueryClient();
@@ -45,8 +52,14 @@ async function wait(ms: number) {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   onlineManager.setOnline(true);
 });
+
+const schedulePasses = () => [
+  makePass("welcome"),
+  makePass("now_next", { source: "live:schedule", layout: "now_next", live: null }),
+];
 
 describe("App", () => {
   it("shows the rotation on the background the bundle names", async () => {
@@ -168,11 +181,7 @@ describe("App", () => {
   it("says so when the server is gone, and stops showing what can no longer be true", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-10-03T18:00:00+02:00"));
-    const passes = [
-      makePass("welcome"),
-      makePass("now_next", { layout: "now_next", source: "live:schedule", live: null }),
-    ];
-    serve(ok(makeBundle({ passes })), "unreachable");
+    serve(ok(makeBundle({ passes: schedulePasses() })), "unreachable");
     renderApp();
     await wait(100);
     expect(document.querySelector('[data-slide="now_next"]')).not.toBeNull();
@@ -188,11 +197,7 @@ describe("App", () => {
 
   it("expires live slides when the browser pauses polling because it is offline", async () => {
     vi.useFakeTimers();
-    const passes = [
-      makePass("welcome"),
-      makePass("now_next", { layout: "now_next", source: "live:schedule", live: null }),
-    ];
-    serve(ok(makeBundle({ passes })));
+    serve(ok(makeBundle({ passes: schedulePasses() })));
     renderApp();
     await wait(100);
     onlineManager.setOnline(false);
@@ -200,5 +205,34 @@ describe("App", () => {
     expect(document.querySelector('[data-chrome="offline"]')).not.toBeNull();
     expect(document.querySelector('[data-slide="now_next"]')).toBeNull();
     expect(screen.getByRole("heading", { name: "Cím welcome" })).toBeInTheDocument();
+  });
+
+  it("gives up on a request that is never answered, and asks again", async () => {
+    vi.useFakeTimers();
+    fakeAbortTimeouts();
+    // The server takes every request after the first and never answers.
+    const fetchMock = serve(ok(makeBundle({ passes: schedulePasses() })), "hanging");
+    renderApp();
+    await wait(100);
+    expect(document.querySelector('[data-slide="now_next"]')).not.toBeNull();
+
+    await wait(2 * 60_000);
+    expect(bundleRequests(fetchMock)).toBeGreaterThan(2);
+    expect(document.querySelector('[data-chrome="offline"]')).toHaveTextContent("offline");
+    // Five minutes after the answer due 20 seconds in, while the latest request waits.
+    await wait(3.5 * 60_000);
+    expect(document.querySelector('[data-slide="now_next"]')).toBeNull();
+    expect(screen.getByRole("heading", { name: "Cím welcome" })).toBeInTheDocument();
+  });
+
+  it("keeps the live slides of a screen that asks rarely between its answers", async () => {
+    vi.useFakeTimers();
+    const rarely = { ...makeBundle().screen, refresh_seconds: 600 };
+    const fetchMock = serve(ok(makeBundle({ screen: rarely, passes: schedulePasses() })));
+    renderApp();
+    await wait(9 * 60_000);
+    expect(bundleRequests(fetchMock)).toBe(1);
+    expect(document.querySelector('[data-slide="now_next"]')).not.toBeNull();
+    expect(document.querySelector('[data-chrome="offline"]')).toBeNull();
   });
 });

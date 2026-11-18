@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useParams, useSearchParams } from "react-router";
 import { useInterval } from "usehooks-ts";
 
-import { ApiError, fetchBundle, isSettled, makeClient, type Pass, type PassLang } from "./api/client";
+import { ApiError, fetchBundle, isSettled, makeClient, type Bundle, type Pass, type PassLang } from "./api/client";
 import { AnnouncementBar, OfflineNote, Takeover, TopRight } from "./components/Chrome";
 import { Rotation } from "./components/Rotation";
 import { Stage } from "./components/Stage";
@@ -13,10 +13,16 @@ import { UI } from "./lib/i18n";
 import { useFreshPage } from "./lib/reload";
 
 const OFFLINE_AFTER_MS = 60_000;
-// Without the server for this long, what the live slides say can no longer be true: the
-// schedule's "now", the match being played. They leave the rotation until it is back.
+// This long after the screen should have had a newer answer, what the live slides say can
+// no longer be true: the schedule's "now", the match being played. They leave the rotation
+// until an answer comes, whether the requests since have failed or are still waiting.
 const LIVE_DATA_EXPIRES_AFTER_MS = 5 * 60_000;
 const BAR_SPACE = 104;
+
+/** How often the screen asks for its bundle, as the admin sets it for the screen. */
+function refreshMs(bundle: Bundle | undefined): number {
+  return (bundle?.screen.refresh_seconds ?? 20) * 1000;
+}
 
 /** Two lines in the middle of the screen for the states that have no slides to show. */
 function Notice({ hu, en, detail }: { hu: string; en: string; detail?: string }) {
@@ -47,8 +53,8 @@ export function App({ apiBase, fallbackScreen = "main" }: { apiBase: string; fal
 
   const query = useQuery({
     queryKey: ["bundle", screen, preview ?? "", previewLang ?? "", phase ?? ""],
-    queryFn: () => fetchBundle(client, screen, { preview, lang: previewLang, phase }),
-    refetchInterval: (q) => (q.state.data?.screen.refresh_seconds ?? 20) * 1000,
+    queryFn: ({ signal }) => fetchBundle(client, screen, { preview, lang: previewLang, phase }, signal),
+    refetchInterval: (q) => refreshMs(q.state.data),
     refetchIntervalInBackground: true,
     placeholderData: (previous) => previous,
     // An answer that will not change is not asked for again at once. The interval above
@@ -67,10 +73,12 @@ export function App({ apiBase, fallbackScreen = "main" }: { apiBase: string; fal
   // A screen that is gone or turned off shows nothing of what it showed before.
   const withdrawn = refused === 404 || refused === 410;
   const bundle = withdrawn ? undefined : query.data;
-  const sinceUpdate = Date.now() - query.dataUpdatedAt;
-  const unavailable = query.failureCount > 0 || query.fetchStatus === "paused";
-  const offline = unavailable && sinceUpdate > OFFLINE_AFTER_MS;
-  const liveDataExpired = unavailable && sinceUpdate > LIVE_DATA_EXPIRES_AFTER_MS;
+  const sinceAnswer = Date.now() - query.dataUpdatedAt;
+  // The server does not answer: the last request ended in failure, the current one has
+  // failed at least once, or the browser holds requests back because it is offline.
+  const failing = query.isError || query.failureCount > 0 || query.fetchStatus === "paused";
+  const offline = failing && sinceAnswer > OFFLINE_AFTER_MS;
+  const liveDataExpired = sinceAnswer > refreshMs(query.data) + LIVE_DATA_EXPIRES_AFTER_MS;
 
   // An announcement leaves the screen when it ends, not when the next answer says so.
   const announcements = (bundle?.announcements ?? []).filter(

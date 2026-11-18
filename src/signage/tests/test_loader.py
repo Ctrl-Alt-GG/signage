@@ -4,6 +4,7 @@ import pytest
 from django.conf import settings
 from django.core.exceptions import ValidationError
 
+from signage.content import lint
 from signage.content.loader import (
     load_all,
     load_announcements,
@@ -223,3 +224,21 @@ def test_an_event_nobody_saved_in_the_admin_follows_the_yaml(db):
     report = load_all(settings.SIGNAGE_CONTENT_DIR, only={"event"})
     assert Event.get_solo().venue_name == "DISTR3CT Event Cube"
     assert report.updated >= 1
+
+
+def test_items_that_do_not_fit_their_layout_are_refused_whatever_calls_the_loader(content):
+    """The import lints first; the loader checks the same when it is called directly."""
+    split = {
+        "id": "split_test",
+        "layout": "split",
+        "phases": "all",
+        "title": {"hu": "Cím", "en": "Title"},
+        "items": [{"hu": "x", "en": "y"}] * 6,
+        "columns": [
+            {"title": {"hu": "a", "en": "b"}, "items": [{"hu": "x", "en": "y"}] * 4},
+            {"title": {"hu": "c", "en": "d"}, "items": []},
+        ],
+    }
+    with pytest.raises(lint.LintError, match="don't fit the split layout"):
+        load_slides({"slides": [split]})
+    assert not Slide.objects.filter(pk="split_test").exists()

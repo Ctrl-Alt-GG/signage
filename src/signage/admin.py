@@ -4,7 +4,7 @@ background artwork and the upstream connections."""
 
 from __future__ import annotations
 
-from datetime import timedelta
+from collections import Counter
 from decimal import DecimalException
 from typing import ClassVar
 
@@ -12,6 +12,7 @@ import yaml
 from django import forms
 from django.conf import settings
 from django.contrib import admin, messages
+from django.contrib.admin.utils import flatten_fieldsets
 from django.contrib.admin.views.main import ChangeList
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import DatabaseError
@@ -27,6 +28,8 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from solo.admin import SingletonModelAdmin
 
+from signage.announcements import Filling, publish
+from signage.concurrency import locked, row_version
 from signage.content import lint
 from signage.content import loader as content_loader
 from signage.content.safe_yaml import load_yaml
@@ -51,9 +54,8 @@ from signage.models import (
     Slide,
     SlideItem,
 )
-from signage.rendering.bundle import build_bundle
+from signage.rendering.bundle import RenderContext, build_bundle
 from signage.rendering.phases import resolve_phase
-from signage.rendering.placeholders import UNRESOLVED_MARKER
 
 CLIENTS = {
     Integration.Kind.PROJECTILE: ProjectileClient,
@@ -100,7 +102,50 @@ class YamlImportForm(forms.Form):
         return upload
 
 
-class AdminOwnedMixin:
+CHANGED_MEANWHILE = _(
+    "Someone else, or the content import, changed this since you opened the page, and saving "
+    "would undo it. Open the page again to see the change, then make yours."
+)
+
+
+class RowVersionForm(forms.ModelForm):
+    """Remembers what its row held when the page was opened, and refuses to save over a change
+    made since. The row stays locked from that check until the change is saved."""
+
+    row_version = forms.CharField(widget=forms.HiddenInput, required=False)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance.pk is not None:
+            self.fields["row_version"].initial = row_version(self.instance)
+
+    def clean(self):
+        cleaned = super().clean()
+        if self.instance.pk is not None:
+            current = locked(type(self.instance)._default_manager.filter(pk=self.instance.pk))
+            if current is None or row_version(current) != cleaned.get("row_version"):
+                raise ValidationError(CHANGED_MEANWHILE, code="changed")
+        return cleaned
+
+
+class ConcurrentEditMixin:
+    """For rows that organizers, and the content import that runs on every start, change at
+    the same time: the change page refuses to save over a change it has not seen."""
+
+    def get_form(self, request, obj=None, change=False, **kwargs):
+        if obj is not None:
+            base = kwargs.get("form") or self.form
+            kwargs["form"] = type(f"RowVersioned{base.__name__}", (RowVersionForm, base), {})
+        return super().get_form(request, obj, change=change, **kwargs)
+
+    def get_fieldsets(self, request, obj=None):
+        fieldsets = list(super().get_fieldsets(request, obj))
+        if obj is None or "row_version" in flatten_fieldsets(fieldsets):
+            return fieldsets
+        return [*fieldsets, (None, {"fields": ("row_version",), "classes": ("hidden",)})]
+
+
+class AdminOwnedMixin(ConcurrentEditMixin):
     """What an organizer does here is theirs. A row saved here carries the admin origin, so
     a later YAML import leaves it alone. A row deleted here is remembered as deleted, so
     the import that runs on every start does not bring it back."""
@@ -236,7 +281,7 @@ class EventForm(forms.ModelForm):
 
 
 @admin.register(Event)
-class EventAdmin(YamlImportMixin, SingletonModelAdmin):
+class EventAdmin(ConcurrentEditMixin, YamlImportMixin, SingletonModelAdmin):
     form = EventForm
     yaml_loader = staticmethod(content_loader.load_event)
     yaml_linter = staticmethod(lint.lint_event)
@@ -450,17 +495,18 @@ class ScheduleEntryAdmin(AdminOwnedMixin, YamlImportMixin, admin.ModelAdmin):
 class SlideItemFormSet(BaseInlineFormSet):
     def clean(self):
         super().clean()
-        counts: dict[int, int] = {}
-        for form in self.forms:
-            data = getattr(form, "cleaned_data", None)
-            if not data or data.get("DELETE"):
-                continue
-            column = data.get("column") or 1
-            counts[column] = counts.get(column, 0) + 1
-        # The layouts show this many and would drop the rest without a word.
-        maximum = (
-            lint.MAX_SPLIT_ITEMS if self.instance.layout == Slide.Layout.SPLIT else lint.MAX_ITEMS
+        counts: Counter[int] = Counter(
+            form.cleaned_data.get("column") or 1
+            for form in self.forms
+            if getattr(form, "cleaned_data", None) and not form.cleaned_data.get("DELETE")
         )
+        # The layouts show this much and would leave out the rest without a word. The YAML
+        # import checks the same (lint.item_limits).
+        columns, maximum = lint.item_limits(self.instance.layout)
+        if set(counts) - columns:
+            raise ValidationError(
+                _("Only the split layout shows a second column. Put these items in column 1.")
+            )
         if any(count > maximum for count in counts.values()):
             raise ValidationError(
                 _("A slide shows at most %(max)d items per column. Move the rest to another slide.")
@@ -687,10 +733,6 @@ class AnnouncementFromTemplateForm(forms.Form):
         return {name: self.cleaned_data[f"ph_{name}"] for name in placeholders}
 
 
-def _usable(value: str | None) -> bool:
-    return bool(value and value.strip() and UNRESOLVED_MARKER not in value)
-
-
 def _length_note(text: str, takeover: bool) -> str:
     if takeover or len(text) <= BAR_COMFORTABLE_LENGTH:
         return ""
@@ -718,7 +760,10 @@ class AnnouncementAdmin(admin.ModelAdmin):
 
     @admin.action(description=_("End now"), permissions=["change"])
     def end_now(self, request, queryset):
-        queryset.update(ends_at=timezone.now())
+        now = timezone.now()
+        queryset.filter(starts_at__lt=now).update(ends_at=now)
+        # One that hasn't started can't end before it starts: it is turned off instead.
+        queryset.filter(starts_at__gte=now).update(enabled=False)
 
     def save_model(self, request, obj, form, change):
         if not change:
@@ -772,39 +817,19 @@ class AnnouncementAdmin(admin.ModelAdmin):
 
         # What the event already knows is filled in, in each language. The organizer is
         # asked for the rest.
-        event = Event.get_solo()
-        known = {lang: event.placeholder_values(lang) for lang in LANGS}
-        from_event = [
-            name
-            for name in template.placeholders
-            if all(_usable(known[lang].get(name)) for lang in LANGS)
-        ]
-        asked = [name for name in template.placeholders if name not in from_event]
+        filling = Filling.of(template, Event.get_solo())
         form = AnnouncementFromTemplateForm(
-            request.POST if request.method == "POST" else None, placeholders=asked
+            request.POST if request.method == "POST" else None, placeholders=filling.asked
         )
         preview = None
         if request.method == "POST" and form.is_valid():
-            typed = form.values(asked)
-            now = timezone.now()
-            minutes = form.cleaned_data["duration_minutes"]
-            announcement = Announcement(
-                level=template.level,
-                takeover=template.takeover,
-                starts_at=now,
-                ends_at=now + timedelta(minutes=minutes) if minutes else None,
-                template=template,
-                created_by=request.user,
-            )
-            for lang in LANGS:
-                values = {**{name: known[lang][name] for name in from_event}, **typed}
-                text = lint.PLACEHOLDER_RE.sub(
-                    lambda match, values=values: values.get(match.group(1), match.group(0)),
-                    template.text("text", lang),
-                )
-                setattr(announcement, f"text_{lang}", text)
             try:
-                announcement.full_clean()
+                announcement = filling.compose(
+                    form.values(filling.asked),
+                    timezone.now(),
+                    form.cleaned_data["duration_minutes"],
+                    request.user,
+                )
             except ValidationError as error:
                 # The texts are not fields of this form: they are made from the template
                 # and what was typed. So the form as a whole says which one is wrong.
@@ -814,8 +839,7 @@ class AnnouncementAdmin(admin.ModelAdmin):
                         form.add_error(None, f"{labels.get(field, field)}: {problem}")
             else:
                 if "publish" in request.POST:
-                    announcement.save()
-                    announcement.screens.set(form.cleaned_data["screens"])
+                    publish(announcement, form.cleaned_data["screens"])
                     messages.success(request, _("Announcement is live."))
                     return redirect("admin:signage_announcement_changelist")
                 preview = [
@@ -831,8 +855,8 @@ class AnnouncementAdmin(admin.ModelAdmin):
             form=form,
             preview=preview,
             from_event=[
-                {"name": name, "values": [known[lang][name] for lang in LANGS]}
-                for name in from_event
+                {"name": name, "values": [filling.known[lang][name] for lang in LANGS]}
+                for name in filling.from_event
             ],
         )
         return TemplateResponse(request, "admin/signage/announcement_from_template.html", context)
@@ -974,11 +998,13 @@ class IntegrationAdmin(admin.ModelAdmin):
 
 def overview(request):
     """One page for the organizer desk: phase, screens with previews, integrations, warnings."""
-    event = Event.get_solo()
     now = timezone.now()
+    # Every screen is built from the same reads, and asks each upstream once.
+    context = RenderContext.load(now)
+    event = context.event
     screens = []
     for screen in Screen.objects.filter(enabled=True):
-        bundle = build_bundle(screen, now)
+        bundle = build_bundle(screen, now, context=context)
         screens.append(
             {
                 "screen": screen,

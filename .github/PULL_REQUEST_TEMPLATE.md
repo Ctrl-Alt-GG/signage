@@ -22,6 +22,8 @@ Keep this short. If a section does not apply, delete it.
 - [ ] `uv run pytest` passes (includes Django checks, migrations, content lint, schema validity)
 - [ ] `manage.py spectacular`, then `pnpm openapi && pnpm typecheck && pnpm test && pnpm build` pass
 - [ ] `scripts/screenshots.py` passes if layouts or styles changed
+- [ ] `uv run pytest` passes on PostgreSQL (`DATABASE_URL`) if models, migrations or the import changed
+- [ ] `scripts/smoke.py` passes against `compose.local.yaml` if images, nginx or settings changed
 - [ ] No generated files committed (schema, API types, build output, screenshots, `docs/`, caches)
 - [ ] Every string on screen exists in `hu` and `en`
 - [ ] No em dashes, en dashes, ellipsis characters or curly quotes in the diff

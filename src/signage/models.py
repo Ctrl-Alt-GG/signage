@@ -12,14 +12,35 @@ from zoneinfo import ZoneInfo
 from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator, RegexValidator
 from django.db import models
+from django.db.models import F, Q
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 from solo.models import SingletonModel
 
+from signage.content import lint
 from signage.content.lint import EVENT_PLACEHOLDERS, PLACEHOLDER_RE, unknown_placeholders
 
 LANGS = ("hu", "en")
 HEX_COLOR = RegexValidator(r"^#[0-9a-fA-F]{6}$", _("Use a six digit hex colour like #aa0000."))
+# Days after the event's first day, as the YAML lint allows them (lint.require_day_offset).
+DAY_OFFSET = [MinValueValidator(0), MaxValueValidator(7)]
+
+
+def check(name: str, condition: Q, message: str) -> models.CheckConstraint:
+    """An invariant the database keeps, whoever writes: the admin, the import, a bulk update
+    or a script. The forms check the same with messages on their fields, and a field with an
+    error of its own isn't checked again here."""
+    return models.CheckConstraint(
+        condition=condition, name=f"signage_{name}", violation_error_message=message
+    )
+
+
+def between(field: str, low: float, high: float) -> Q:
+    return Q(**{f"{field}__gte": low, f"{field}__lte": high})
+
+
+def a_day_from_now():
+    return timezone.now() + timedelta(days=1)
 
 
 def unknown_placeholder_message(names: list[str]) -> str:
@@ -107,12 +128,17 @@ class Phase(TimeStamped, SeedOwned, Bilingual):
     name_en = models.CharField(max_length=60)
     starts = models.TimeField(help_text=_("Local wall-clock time when this phase begins."))
     day_offset = models.SmallIntegerField(
-        default=0, help_text=_("0 on the event's first day, 1 after midnight.")
+        default=0,
+        validators=DAY_OFFSET,
+        help_text=_("0 on the event's first day, 1 after midnight."),
     )
     order = models.SmallIntegerField(default=0)
 
     class Meta:
         ordering = ("order", "day_offset", "starts")
+        constraints = (
+            check("phase_day_offset", between("day_offset", 0, 7), _("A day from 0 to 7.")),
+        )
 
     def __str__(self) -> str:
         return self.key
@@ -132,7 +158,7 @@ class Event(SingletonModel, Bilingual):
     name = models.CharField(max_length=100, default="Ctrl-Alt-GG")
     tagline = models.CharField(max_length=100, blank=True, default="GL&HF, IRL.")
     starts_at = models.DateTimeField(default=timezone.now)
-    ends_at = models.DateTimeField(default=timezone.now)
+    ends_at = models.DateTimeField(default=a_day_from_now)
     timezone = models.CharField(max_length=60, default="Europe/Budapest")
 
     venue_name = models.CharField(max_length=120, blank=True)
@@ -170,6 +196,13 @@ class Event(SingletonModel, Bilingual):
 
     class Meta:
         verbose_name = _("Event")
+        constraints = (
+            check(
+                "event_ends_after_start",
+                Q(ends_at__gt=F("starts_at")),
+                _("The event must end after it starts."),
+            ),
+        )
 
     def __str__(self) -> str:
         return self.name
@@ -246,6 +279,23 @@ class DisplaySettings(SingletonModel):
 
     class Meta:
         verbose_name = _("Display settings")
+        constraints = (
+            check(
+                "display_stage_size",
+                Q(stage_width__gte=160, stage_height__gte=160),
+                _("The stage needs a size."),
+            ),
+            check(
+                "display_safe_area_on_stage",
+                Q(
+                    safe_width__gte=80,
+                    safe_height__gte=80,
+                    safe_width__lte=F("stage_width") - F("safe_x"),
+                    safe_height__lte=F("stage_height") - F("safe_y"),
+                ),
+                _("The safe area has to be on the stage."),
+            ),
+        )
 
     def __str__(self) -> str:
         return "Display settings"
@@ -305,7 +355,7 @@ class ScheduleEntry(TimeStamped, SeedOwned, Bilingual):
         help_text=_("Stable id the YAML import matches on. Left empty, one is generated."),
     )
     time = models.TimeField()
-    day_offset = models.SmallIntegerField(default=0)
+    day_offset = models.SmallIntegerField(default=0, validators=DAY_OFFSET)
     type = models.CharField(max_length=9, choices=Type, default=Type.PLAY)
     game = models.ForeignKey(Game, null=True, blank=True, on_delete=models.SET_NULL)
     label = models.CharField(max_length=60, blank=True)
@@ -318,6 +368,9 @@ class ScheduleEntry(TimeStamped, SeedOwned, Bilingual):
     class Meta:
         ordering = ("day_offset", "time", "order")
         verbose_name_plural = _("Schedule entries")
+        constraints = (
+            check("schedule_day_offset", between("day_offset", 0, 7), _("A day from 0 to 7.")),
+        )
 
     def __str__(self) -> str:
         return f"{self.time:%H:%M} {self.title_hu}"
@@ -417,6 +470,20 @@ class Slide(TimeStamped, SeedOwned, Bilingual):
 
     class Meta:
         ordering = ("-priority", "order", "key")
+        constraints = (
+            check(
+                "slide_timing",
+                between("duration_seconds", 5, 120) & between("priority", 0, 100),
+                _("A slide shows for 5 to 120 seconds, with a priority from 0 to 100."),
+            ),
+            check(
+                "slide_valid_window",
+                Q(valid_from__isnull=True)
+                | Q(valid_until__isnull=True)
+                | Q(valid_until__gt=F("valid_from")),
+                _("A slide has to be valid until after it is valid from."),
+            ),
+        )
 
     def __str__(self) -> str:
         return self.key
@@ -431,6 +498,17 @@ class Slide(TimeStamped, SeedOwned, Bilingual):
             self.column1_title_hu and self.column2_title_hu
         ):
             raise ValidationError(_("A split slide needs both column titles."))
+        wanted = lint.LAYOUT_SOURCES.get(self.layout)
+        if wanted and self.source != wanted:
+            raise ValidationError(
+                {
+                    "source": _(
+                        "The %(layout)s layout shows %(wanted)s data. Choose that source, "
+                        "or a layout that shows %(source)s."
+                    )
+                    % {"layout": self.layout, "wanted": wanted, "source": self.source}
+                }
+            )
         if self.valid_from and self.valid_until and self.valid_until <= self.valid_from:
             raise ValidationError({"valid_until": _("Must be after valid from.")})
         if not isinstance(self.labels, dict):
@@ -473,6 +551,7 @@ class SlideItem(models.Model):
 
     class Meta:
         ordering = ("column", "order", "id")
+        constraints = (check("slideitem_column", between("column", 1, 2), _("Column 1 or 2.")),)
 
     def __str__(self) -> str:
         return self.text_hu[:40]
@@ -514,6 +593,13 @@ class Screen(TimeStamped):
 
     class Meta:
         ordering = ("slug",)
+        constraints = (
+            check(
+                "screen_refresh",
+                between("refresh_seconds", 5, 600),
+                _("A screen asks for news every 5 to 600 seconds."),
+            ),
+        )
 
     def __str__(self) -> str:
         return self.name
@@ -584,6 +670,13 @@ class Announcement(TimeStamped, Bilingual):
 
     class Meta:
         ordering = ("-starts_at",)
+        constraints = (
+            check(
+                "announcement_ends_after_start",
+                Q(ends_at__isnull=True) | Q(ends_at__gt=F("starts_at")),
+                _("The announcement must end after it starts."),
+            ),
+        )
 
     def __str__(self) -> str:
         return self.text_hu[:60]
@@ -686,6 +779,23 @@ class Integration(TimeStamped):
 
     class Meta:
         ordering = ("kind",)
+        constraints = (
+            check(
+                "integration_upstream_time",
+                Q(
+                    connect_timeout__gte=0.1,
+                    read_timeout__gte=0.1,
+                    connect_timeout__lte=MAX_UPSTREAM_SECONDS - F("read_timeout"),
+                ),
+                _("Connecting and reading may take %(max)d seconds together at most.")
+                % {"max": MAX_UPSTREAM_SECONDS},
+            ),
+            check(
+                "integration_cache_seconds",
+                between("cache_seconds", 1, 600),
+                _("Answers are kept for 1 to 600 seconds."),
+            ),
+        )
 
     def __str__(self) -> str:
         return self.get_kind_display()

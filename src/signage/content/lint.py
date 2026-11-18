@@ -17,27 +17,23 @@ BANNED_GLYPHS = {
     chr(0x00A0): "non-breaking space",
 }
 
-LAYOUTS = {
-    "hero",
-    "list",
-    "split",
-    "qr",
-    "credentials",
-    "now_next",
-    "schedule",
-    "servers",
-    "tournament",
-    "streams",
-    "countdown",
+# The data each layout draws. The text layouts show what the slide says and nothing live;
+# each of the others shows one kind of live data, which another source would not have.
+LAYOUT_SOURCES = {
+    "hero": "static",
+    "list": "static",
+    "split": "static",
+    "qr": "static",
+    "credentials": "static",
+    "now_next": "live:schedule",
+    "schedule": "live:schedule",
+    "servers": "live:projectile",
+    "tournament": "live:bracket",
+    "streams": "live:streams",
+    "countdown": "live:clock",
 }
-SOURCES = {
-    "static",
-    "live:schedule",
-    "live:clock",
-    "live:projectile",
-    "live:bracket",
-    "live:streams",
-}
+LAYOUTS = set(LAYOUT_SOURCES)
+SOURCES = set(LAYOUT_SOURCES.values())
 LANGS = ("hu", "en")
 MAX_ITEMS = 6
 MAX_SPLIT_ITEMS = 4
@@ -62,6 +58,20 @@ TIME_RE = re.compile(r"([01]?\d|2[0-3]):[0-5]\d")
 
 class LintError(Exception):
     pass
+
+
+def source_problem(layout: object, source: object) -> str | None:
+    """Why a slide can't show `source` in `layout`, or None when it can."""
+    wanted = LAYOUT_SOURCES.get(str(layout))
+    if wanted is None or source == wanted:
+        return None
+    return f"the {layout} layout shows {wanted} data, not {source}"
+
+
+def item_limits(layout: object) -> tuple[set[int], int]:
+    """The columns a layout shows items in, and how many items it shows in each. The split
+    layout has two columns; the others show one list, in column 1."""
+    return ({1, 2}, MAX_SPLIT_ITEMS) if layout == "split" else ({1}, MAX_ITEMS)
 
 
 def unknown_placeholders(text: object) -> list[str]:
@@ -138,6 +148,8 @@ def lint_slides(slides: dict, phases: Iterable[str]) -> None:
             raise LintError(f"{where}: unknown layout {slide.get('layout')!r}")
         if slide.get("source", "static") not in SOURCES:
             raise LintError(f"{where}: unknown source {slide.get('source')!r}")
+        if problem := source_problem(slide["layout"], slide.get("source", "static")):
+            raise LintError(f"{where}: {problem}")
         slide_phases = slide.get("phases")
         if slide_phases != "all":
             if not isinstance(slide_phases, list) or not slide_phases:
@@ -153,13 +165,19 @@ def lint_slides(slides: dict, phases: Iterable[str]) -> None:
             if key in slide:
                 require_placeholders(require_bilingual(slide[key], f"{where}.{key}"), where)
         items = require_mappings(slide.get("items", []), f"{where}.items")
+        split = slide.get("layout") == "split"
+        # The split layout shows the items of its columns, and the other layouts have none.
+        if split and items:
+            raise LintError(f"{where}: a split slide lists its items under its two columns")
         if len(items) > MAX_ITEMS:
             raise LintError(f"{where}: at most {MAX_ITEMS} items are shown on one slide")
         for index, item in enumerate(items):
             require_placeholders(require_bilingual(item, f"{where}.items[{index}]"), where)
         columns = require_mappings(slide.get("columns", []), f"{where}.columns")
-        if slide.get("layout") == "split" and len(columns) != 2:
+        if split and len(columns) != 2:
             raise LintError(f"{where}: split layout needs exactly two columns")
+        if not split and columns:
+            raise LintError(f"{where}: only the split layout shows columns")
         for cindex, column in enumerate(columns):
             here = f"{where}.columns[{cindex}]"
             require_placeholders(require_bilingual(column.get("title"), f"{here}.title"), where)

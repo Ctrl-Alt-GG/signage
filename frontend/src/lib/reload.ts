@@ -8,6 +8,9 @@ import { useInterval } from "usehooks-ts";
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
 const RELOAD_AFTER_MS = 6 * 60 * 60 * 1000;
+// The page is a small file, served without the backend. A server that takes longer than
+// this cannot be relied on to serve the page after a reload either.
+export const PAGE_TIMEOUT_MS = 10_000;
 
 /** The scripts a page loads, which Vite names after their content: a new build has others. */
 export function buildOf(html: string): string {
@@ -18,7 +21,7 @@ export function buildOf(html: string): string {
 /** The page as the server has it now, or null when it cannot be had. */
 async function servedPage(): Promise<string | null> {
   try {
-    const response = await fetch("/", { cache: "no-store" });
+    const response = await fetch("/", { cache: "no-store", signal: AbortSignal.timeout(PAGE_TIMEOUT_MS) });
     const html = response.ok ? await response.text() : "";
     return html.includes('id="root"') ? html : null;
   } catch {

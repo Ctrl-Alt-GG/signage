@@ -37,12 +37,14 @@ def test_bundle(client, content):
 
 def test_bundles_are_shared_for_a_moment_but_each_tells_the_time(client, content, monkeypatch):
     """A room full of screens, or anyone hammering the anonymous API, costs one build."""
-    from signage.api import views
+    from signage.rendering import bundle as rendering
 
     builds = []
-    real = views.build_bundle
+    real = rendering.build_bundle
     monkeypatch.setattr(
-        views, "build_bundle", lambda *args, **kwargs: builds.append(1) or real(*args, **kwargs)
+        rendering,
+        "build_bundle",
+        lambda *args, **kwargs: builds.append(1) or real(*args, **kwargs),
     )
     first = client.get("/api/v1/screens/main/bundle/").json()
     second = client.get("/api/v1/screens/main/bundle/").json()

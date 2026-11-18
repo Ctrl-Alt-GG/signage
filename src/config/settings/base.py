@@ -147,6 +147,14 @@ SIGNAGE_CONTENT_DIR = BASE_DIR / "content"
 SIGNAGE_LAST_GOOD_SECONDS = env.int("SIGNAGE_LAST_GOOD_SECONDS", default=3600)
 SIGNAGE_LOCK_DIR = env("SIGNAGE_LOCK_DIR", default="/tmp/signage-refresh-locks")
 SIGNAGE_THUMBNAIL_CACHE_SECONDS = env.int("SIGNAGE_THUMBNAIL_CACHE_SECONDS", default=20)
+# The largest answers taken from an upstream system: a JSON document, and a thumbnail. A
+# larger one fails like an upstream that is down, and the last good answer stands in.
+SIGNAGE_UPSTREAM_MAX_BYTES = env.int("SIGNAGE_UPSTREAM_MAX_BYTES", default=10_000_000)
+SIGNAGE_THUMBNAIL_MAX_BYTES = env.int("SIGNAGE_THUMBNAIL_MAX_BYTES", default=2_000_000)
+# How old the streams on a screen may be while Streams can't see its media server: they
+# stay on, marked as not current, until their last observation is this old. Then the
+# screen says that streams can't be checked.
+SIGNAGE_STREAMS_RETAIN_SECONDS = env.int("SIGNAGE_STREAMS_RETAIN_SECONDS", default=300)
 # Every screen polls its bundle. Building it once a second at most keeps a room full of
 # screens, or someone hammering the anonymous API, from costing more than one build.
 SIGNAGE_BUNDLE_CACHE_SECONDS = env.float("SIGNAGE_BUNDLE_CACHE_SECONDS", default=1.0)

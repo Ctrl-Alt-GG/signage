@@ -13,6 +13,7 @@ from signage.integrations.bracket import BracketClient, match_status, parse_tour
 from signage.integrations.projectile import ProjectileClient, parse_bundle, players_text
 from signage.integrations.streams import StreamsClient, parse_streams
 from signage.models import Game, Integration
+from signage.tests.helpers import BASIC, BRACKET, configure
 
 BUDAPEST = ZoneInfo("Europe/Budapest")
 
@@ -145,24 +146,9 @@ def test_all_live_matches_reach_the_display_paginator():
     assert [match["id"] for match in parsed["live"]] == list(range(1, 7))
 
 
-def _configure(kind: str, url: str, **values) -> Integration:
-    row = Integration.objects.get(kind=kind)
-    row.enabled = True
-    row.base_url = url
-    for name, value in values.items():
-        setattr(row, name, value)
-    row.full_clean()
-    row.save()
-    return row
-
-
-BASIC = {"auth_type": Integration.Auth.BASIC, "username": "u", "password": "p"}
-BRACKET = "https://bracket.example/api"
-
-
 @respx.mock
 def test_bracket_client_reads_the_chosen_tournament(content, fixture_json):
-    row = _configure("bracket", BRACKET, tournament_id=1)
+    row = configure("bracket", BRACKET, tournament_id=1)
     details = respx.get(f"{BRACKET}/tournaments/1/details").mock(
         return_value=httpx.Response(200, json=fixture_json("bracket_details.json"))
     )
@@ -173,7 +159,7 @@ def test_bracket_client_reads_the_chosen_tournament(content, fixture_json):
 
 @respx.mock
 def test_bracket_client_reads_a_bracket_from_before_the_details_endpoint(content, fixture_json):
-    row = _configure("bracket", BRACKET, tournament_id=1)
+    row = configure("bracket", BRACKET, tournament_id=1)
     respx.get(f"{BRACKET}/tournaments/1/details").mock(
         return_value=httpx.Response(404, json={"detail": "Not Found"})
     )
@@ -250,7 +236,7 @@ def test_the_fields_the_parser_reads_are_in_brackets_schema(fixture_json):
 
 @respx.mock
 def test_fetch_caches_and_falls_back_to_last_good(content, fixture_json):
-    row = _configure("projectile", "https://servers.example/api", **BASIC)
+    row = configure("projectile", "https://servers.example/api", **BASIC)
     route = respx.get("https://servers.example/api/bundle").mock(
         return_value=httpx.Response(200, json=fixture_json("projectile_bundle.json"))
     )
@@ -270,7 +256,7 @@ def test_fetch_caches_and_falls_back_to_last_good(content, fixture_json):
 
 @respx.mock
 def test_an_upstream_that_is_down_is_asked_once_per_cache_period(content):
-    row = _configure("streams", "https://streams.example/api/v1")
+    row = configure("streams", "https://streams.example/api/v1")
     route = respx.get("https://streams.example/api/v1/streams/").mock(
         side_effect=httpx.ConnectError("connection refused")
     )
@@ -286,7 +272,7 @@ def test_an_upstream_that_is_down_is_asked_once_per_cache_period(content):
 
 @respx.mock
 def test_one_request_refreshes_while_the_others_get_the_last_good_answer(content, fixture_json):
-    row = _configure("projectile", "https://servers.example/api")
+    row = configure("projectile", "https://servers.example/api")
     route = respx.get("https://servers.example/api/bundle").mock(
         return_value=httpx.Response(200, json=fixture_json("projectile_bundle.json"))
     )
@@ -318,7 +304,7 @@ def test_refresh_lock_is_shared_between_threads_and_released(settings, tmp_path)
 
 @respx.mock
 def test_new_settings_never_get_an_answer_from_the_old_ones(content, fixture_json):
-    old = _configure("bracket", BRACKET, tournament_id=1)
+    old = configure("bracket", BRACKET, tournament_id=1)
     respx.get(f"{BRACKET}/tournaments/1/details").mock(
         return_value=httpx.Response(200, json=fixture_json("bracket_details.json"))
     )
@@ -327,18 +313,18 @@ def test_new_settings_never_get_an_answer_from_the_old_ones(content, fixture_jso
     other = fixture_json("bracket_details.json")
     other["data"]["tournament"]["name"] = "Another tournament"
     respx.get(f"{BRACKET}/tournaments/2/details").mock(return_value=httpx.Response(200, json=other))
-    new = _configure("bracket", BRACKET, tournament_id=2)
+    new = configure("bracket", BRACKET, tournament_id=2)
     assert BracketClient(new).fetch().data["name"] == "Another tournament"
 
     # Nor is the old tournament shown as "last good" when the new one cannot be read.
     respx.get(f"{BRACKET}/tournaments/3/details").mock(return_value=httpx.Response(500))
-    third = BracketClient(_configure("bracket", BRACKET, tournament_id=3)).fetch()
+    third = BracketClient(configure("bracket", BRACKET, tournament_id=3)).fetch()
     assert third.data is None and third.stale
 
 
 @respx.mock
 def test_credentials_do_not_follow_a_redirect(content):
-    row = _configure("projectile", "https://servers.example/api", **BASIC)
+    row = configure("projectile", "https://servers.example/api", **BASIC)
     respx.get("https://servers.example/api/bundle").mock(
         return_value=httpx.Response(302, headers={"Location": "https://evil.example/bundle"})
     )
@@ -350,7 +336,7 @@ def test_credentials_do_not_follow_a_redirect(content):
 @respx.mock
 def test_a_tournament_bracket_refuses_is_named_with_what_to_do(content):
     """Bracket answers a missing or private tournament as it would a bad login."""
-    row = _configure("bracket", BRACKET, tournament_id=7)
+    row = configure("bracket", BRACKET, tournament_id=7)
     respx.get(f"{BRACKET}/tournaments/7/details").mock(
         return_value=httpx.Response(401, json={"detail": "Could not validate credentials"})
     )
@@ -363,8 +349,8 @@ def test_a_tournament_bracket_refuses_is_named_with_what_to_do(content):
 
 
 @respx.mock
-def test_a_redirect_names_the_api_root_to_configure(content):
-    row = _configure("streams", "http://streams.example/api/v1")
+def test_a_redirect_names_the_api_root_toconfigure(content):
+    row = configure("streams", "http://streams.example/api/v1")
     respx.get("http://streams.example/api/v1/streams/").mock(
         return_value=httpx.Response(
             301, headers={"Location": "https://streams.example/api/v1/streams/"}
@@ -378,7 +364,7 @@ def test_a_redirect_names_the_api_root_to_configure(content):
 
 @respx.mock
 def test_a_bundle_without_time_left_asks_no_upstream(content, fixture_json):
-    row = _configure("streams", "https://streams.example/api/v1")
+    row = configure("streams", "https://streams.example/api/v1")
     route = respx.get("https://streams.example/api/v1/streams/").mock(
         return_value=httpx.Response(200, json=fixture_json("streams_list.json"))
     )
@@ -412,7 +398,7 @@ def test_disabled_integration_is_skipped(content):
 def test_thumbnails_come_from_the_address_streams_was_configured_with(content):
     """Streams names its public address in the URLs it hands out. Signage may reach it by
     another one, and that is where the credentials belong."""
-    client = StreamsClient(_configure("streams", "http://streams-web:8000/api/v1", **BASIC))
+    client = StreamsClient(configure("streams", "http://streams-web:8000/api/v1", **BASIC))
     internal = respx.get("http://streams-web:8000/streams/1/thumbnail/").respond(
         200, content=b"img", headers={"content-type": "image/jpeg"}
     )
@@ -429,7 +415,7 @@ def test_thumbnails_come_from_the_address_streams_was_configured_with(content):
 
 @respx.mock
 def test_thumbnail_redirects_stay_with_streams(content):
-    client = StreamsClient(_configure("streams", "https://streams.example/api", **BASIC))
+    client = StreamsClient(configure("streams", "https://streams.example/api", **BASIC))
     respx.get("https://streams.example/streams/1/thumbnail/").mock(
         return_value=httpx.Response(302, headers={"Location": "https://cdn.example/t/1.jpg?x=1"})
     )
@@ -445,7 +431,7 @@ def test_thumbnail_redirects_stay_with_streams(content):
 @respx.mock
 def test_the_artwork_streams_redirects_to_by_path_is_passed_on(content):
     """Streams sends a stream without a captured frame to its artwork, by path."""
-    client = StreamsClient(_configure("streams", "https://streams.example/api/v1", **BASIC))
+    client = StreamsClient(configure("streams", "https://streams.example/api/v1", **BASIC))
     respx.get("https://streams.example/streams/1/thumbnail/").mock(
         return_value=httpx.Response(
             302, headers={"Location": "/static/catalog/thumbnails/fallback.webp"}
@@ -460,7 +446,7 @@ def test_the_artwork_streams_redirects_to_by_path_is_passed_on(content):
 
 @respx.mock
 def test_only_pictures_are_passed_on_as_thumbnails(content):
-    client = StreamsClient(_configure("streams", "https://streams.example/api"))
+    client = StreamsClient(configure("streams", "https://streams.example/api"))
     respx.get("https://streams.example/page").respond(
         200, content=b"<script>alert(1)</script>", headers={"content-type": "text/html"}
     )

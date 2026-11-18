@@ -1,5 +1,4 @@
-import type { Pass } from "../api/client";
-import { asLive, type ScheduleLive } from "../api/live";
+import type { LiveSchedulePass } from "../api/client";
 import { joined, pick } from "../lib/i18n";
 import { EmptyState, Footer, Title, typeAccent } from "./common";
 
@@ -7,9 +6,8 @@ const ROWS = 6;
 
 /** A timeline of the current slot and the next five: time, game name large, slot title
     small. Notes are left out on purpose; the room reads this from metres away. */
-export function ScheduleSlide({ pass }: { pass: Pass }) {
-  const live = asLive<ScheduleLive>(pass.live);
-  const rows = (live?.upcoming ?? []).slice(0, ROWS);
+export function ScheduleSlide({ pass }: { pass: LiveSchedulePass }) {
+  const rows = (pass.live?.upcoming ?? []).slice(0, ROWS);
   return (
     <div className="flex h-full flex-col gap-3">
       <div className="pr-[280px]">

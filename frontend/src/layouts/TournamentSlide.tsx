@@ -1,5 +1,4 @@
-import type { Pass } from "../api/client";
-import { asLive, type MatchRow, type TournamentLive } from "../api/live";
+import type { LiveBracketPass, MatchRow } from "../api/client";
 import { joined, pick, primaryLang, ui } from "../lib/i18n";
 import { Card, EmptyState, Footer, SectionLabel, Title } from "./common";
 
@@ -13,8 +12,8 @@ function Teams({ match, size }: { match: MatchRow; size: number }) {
   );
 }
 
-export function TournamentSlide({ pass }: { pass: Pass }) {
-  const live = asLive<TournamentLive>(pass.live);
+export function TournamentSlide({ pass }: { pass: LiveBracketPass }) {
+  const live = pass.live;
   const lang = primaryLang(pass.lang);
   const labels = pass.content.labels;
   const liveMatches = live?.live ?? [];
@@ -31,8 +30,8 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
       {nothing ? (
         <EmptyState pass={pass} />
       ) : (
-        <div className="grid min-h-0 flex-1 grid-cols-[1.2fr_1fr_0.9fr] gap-6">
-          <Card className="gap-4" accent="#aa0000">
+        <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,0.9fr)] gap-6">
+          <Card className="gap-3" accent="#aa0000">
             <div className="flex items-center justify-between gap-3">
               <SectionLabel>{joined(labels.live, pass.lang)}</SectionLabel>
               {page && page.count > 1 ? (
@@ -45,16 +44,19 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
               <span className="text-[30px] text-ink-dim">{pick(pass.content.empty, lang)}</span>
             ) : (
               liveMatches.map((match) => (
-                <div key={match.id ?? match.team1 + match.team2} className="flex flex-col gap-2">
-                  <Teams match={match} size={40} />
-                  <span className="flex items-center gap-3 text-[26px] text-ink-muted">
+                <div key={match.id ?? match.team1 + match.team2} className="flex flex-col gap-1">
+                  <Teams match={match} size={30} />
+                  <span className="flex items-center gap-3 text-[22px] leading-tight text-ink-muted">
                     {/* The dot is for a match in its planned time. One that ran past it
-                        has started and has no result yet, which is all that is known. */}
+                        has started and has no result yet, which is all that is known, so
+                        that comes first where the dot would be. */}
                     {match.status === "awaiting" ? null : (
-                      <span className="block size-4 animate-pulse-dot rounded-full bg-brand-500" />
+                      <span className="block size-4 shrink-0 animate-pulse-dot rounded-full bg-brand-500" />
                     )}
-                    {match.round} {match.start_local}
-                    {match.status === "awaiting" ? ` · ${ui("awaiting", pass.lang)}` : ""}
+                    <span className="min-w-0 truncate" data-allow-clip>
+                      {match.status === "awaiting" ? `${ui("awaiting", pass.lang)} · ` : ""}
+                      {match.round} {match.start_local}
+                    </span>
                   </span>
                 </div>
               ))
@@ -65,16 +67,18 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
             {upcoming.length === 0 ? (
               <span className="text-[30px] text-ink-dim">-</span>
             ) : (
-              upcoming.slice(0, 4).map((match) => (
-                <div key={match.id ?? match.team1 + match.team2} className="flex items-center gap-4">
-                  <span className="w-[110px] shrink-0 font-mono text-[32px] font-bold tabular text-ink-muted">
-                    {match.start_local}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <Teams match={match} size={30} />
+              <div className="flex flex-col gap-2">
+                {upcoming.slice(0, 4).map((match) => (
+                  <div key={match.id ?? match.team1 + match.team2} className="flex items-center gap-4 leading-tight">
+                    <span className="w-[90px] shrink-0 font-mono text-[26px] font-bold tabular text-ink-muted">
+                      {match.start_local}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <Teams match={match} size={26} />
+                    </div>
                   </div>
-                </div>
-              ))
+                ))}
+              </div>
             )}
           </Card>
           <Card className="gap-3">
@@ -83,9 +87,9 @@ export function TournamentSlide({ pass }: { pass: Pass }) {
               <span className="text-[30px] text-ink-dim">-</span>
             ) : (
               results.slice(0, 3).map((match) => (
-                <div key={match.id ?? match.team1 + match.team2} className="flex items-center gap-3 text-[30px]">
+                <div key={match.id ?? match.team1 + match.team2} className="flex items-center gap-3 text-[28px] leading-tight">
                   <span className="min-w-0 flex-1 truncate font-semibold" data-allow-clip>{match.team1}</span>
-                  <span className="shrink-0 font-mono text-[34px] font-bold tabular">
+                  <span className="shrink-0 font-mono text-[30px] font-bold tabular">
                     {match.score1} : {match.score2}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-right font-semibold" data-allow-clip>{match.team2}</span>

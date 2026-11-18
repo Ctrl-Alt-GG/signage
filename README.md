@@ -113,7 +113,7 @@ is in `docker/nginx/default.conf.template`.
 - `docker/`, `compose.yaml`, `compose.local.yaml`: the images and the stacks.
 - `content/`: event facts, schedule, games, slides and announcement templates as YAML.
 - `assets/background.svg`: the 1920x1080 background.
-- `scripts/render_content.py`: lints the YAML; `scripts/screenshots.py`: checks every slide against the safe area.
+- `scripts/render_content.py`: lints the YAML; `scripts/screenshots.py`: checks every slide against the safe area; `scripts/smoke.py`: checks the two images served together.
 - [`AGENTS.md`](AGENTS.md): the guide for humans and AI agents: decisions, invariants, conventions, checks.
 
 ## Editing the copy

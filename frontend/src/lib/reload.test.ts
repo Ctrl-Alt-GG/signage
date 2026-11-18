@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildOf, reloadWhenDue, reloadWhenServed } from "./reload";
+import { fakeAbortTimeouts, hangingFetch } from "../test-helpers";
+import { buildOf, PAGE_TIMEOUT_MS, reloadWhenDue, reloadWhenServed } from "./reload";
 
 const page = (script: string) =>
   `<html><head><script type="module" src="/assets/${script}"></script></head>` +
@@ -12,7 +13,9 @@ function serve(answer: () => Promise<Response>) {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe("buildOf", () => {
@@ -59,6 +62,17 @@ describe("reloading a kiosk", () => {
     const reload = vi.fn();
     serve(() => Promise.reject(new TypeError("Failed to fetch")));
     expect(await reloadWhenDue(7 * HOUR, page("index-AbC123.js"), reload)).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("gives up on a server that takes the request and never answers", async () => {
+    vi.useFakeTimers();
+    fakeAbortTimeouts();
+    const reload = vi.fn();
+    vi.stubGlobal("fetch", vi.fn(hangingFetch));
+    const reloading = reloadWhenServed(reload);
+    await vi.advanceTimersByTimeAsync(PAGE_TIMEOUT_MS);
+    expect(await reloading).toBe(false);
     expect(reload).not.toHaveBeenCalled();
   });
 });
